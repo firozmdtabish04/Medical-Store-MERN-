@@ -21,15 +21,18 @@ dotenv.config();
 
 const app = express();
 
-// Database
-connectDB();
+// ----------------------------------
+// MIDDLEWARE
+// ----------------------------------
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// ----------------------------------
+// ROUTES
+// ----------------------------------
+
 app.use("/api/auth", authRoutes);
 app.use("/api/pharmacies", pharmacyRoutes);
 app.use("/api/admin", adminRoutes);
@@ -39,7 +42,10 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/delivery", deliveryRoutes);
 app.use("/api/notifications", notificationRoutes);
 
-// Test API
+// ----------------------------------
+// TEST API
+// ----------------------------------
+
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -47,7 +53,10 @@ app.get("/", (req, res) => {
   });
 });
 
-// Error handler
+// ----------------------------------
+// ERROR HANDLER
+// ----------------------------------
+
 app.use(errorHandler);
 
 // ----------------------------------
@@ -99,6 +108,19 @@ io.on("connection", (socket) => {
 // START SERVER
 // ----------------------------------
 
-server.listen(PORT, () => {
-  console.log(`MediFind server running on port ${PORT}`);
-});
+const startServer = async () => {
+  try {
+    console.log("Connecting to MongoDB...");
+
+    await connectDB();
+
+    server.listen(PORT, () => {
+      console.log(`MediFind server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Server startup failed:", error.message);
+    process.exit(1);
+  }
+};
+
+startServer();
