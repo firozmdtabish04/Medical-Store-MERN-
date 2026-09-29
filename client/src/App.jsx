@@ -1,14 +1,22 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import Register from "./pages/auth/Register";
+import PublicLayout from "./layouts/PublicLayout";
+import AppLayout from "./layouts/AppLayout";
+
+import Home from "./pages/public/Home";
+import Services from "./pages/public/Services";
+import About from "./pages/public/About";
+import Contact from "./pages/public/Contact";
+
 import Login from "./pages/auth/Login";
+import Register from "./pages/auth/Register";
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 import CustomerDashboard from "./pages/dashboards/CustomerDashboard";
 import PharmacistDashboard from "./pages/dashboards/PharmacistDashboard";
 import DeliveryDashboard from "./pages/dashboards/DeliveryDashboard";
 import AdminDashboard from "./pages/dashboards/AdminDashboard";
-
-import ProtectedRoute from "./components/ProtectedRoute";
 
 function Unauthorized() {
   return <h1>403 - Unauthorized</h1>;
@@ -18,54 +26,76 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* PUBLIC */}
-        <Route path="/" element={<Login />} />
+        {/* ================= PUBLIC ================= */}
 
-        <Route path="/register" element={<Register />} />
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<Home />} />
 
-        <Route path="/login" element={<Login />} />
+          <Route path="/services" element={<Services />} />
 
-        <Route path="/unauthorized" element={<Unauthorized />} />
+          <Route path="/about" element={<About />} />
 
-        {/* CUSTOMER */}
+          <Route path="/contact" element={<Contact />} />
+
+          <Route path="/login" element={<Login />} />
+
+          <Route path="/register" element={<Register />} />
+        </Route>
+
+        {/* ================= CUSTOMER ================= */}
+
         <Route
-          path="/customer/dashboard"
           element={
             <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-              <CustomerDashboard />
+              <AppLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route path="/customer/dashboard" element={<CustomerDashboard />} />
+        </Route>
 
-        {/* PHARMACIST */}
+        {/* ================= PHARMACIST ================= */}
+
         <Route
-          path="/pharmacist/dashboard"
           element={
             <ProtectedRoute allowedRoles={["PHARMACIST"]}>
-              <PharmacistDashboard />
+              <AppLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route
+            path="/pharmacist/dashboard"
+            element={<PharmacistDashboard />}
+          />
+        </Route>
 
-        {/* DELIVERY */}
+        {/* ================= DELIVERY ================= */}
+
         <Route
-          path="/delivery/dashboard"
           element={
             <ProtectedRoute allowedRoles={["DELIVERY"]}>
-              <DeliveryDashboard />
+              <AppLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
+        </Route>
 
-        {/* ADMIN */}
+        {/* ================= ADMIN ================= */}
+
         <Route
-          path="/admin/dashboard"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AdminDashboard />
+              <AppLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        </Route>
+
+        {/* ================= UNAUTHORIZED ================= */}
+
+        <Route path="/unauthorized" element={<Unauthorized />} />
       </Routes>
     </BrowserRouter>
   );
