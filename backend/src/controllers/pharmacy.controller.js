@@ -1,6 +1,6 @@
 const Pharmacy = require("../models/Pharmacy");
 const Medicine = require("../models/Medicine");
-
+const PharmacyMedicine = require("../models/PharmacyMedicine");
 // =====================================================
 // CREATE PHARMACY
 // =====================================================
@@ -498,7 +498,89 @@ const updatePharmacy = async (req, res, next) => {
     next(error);
   }
 };
+const getPharmacyDetails = async (req, res, next) => {
+  try {
+    const pharmacy = await Pharmacy.findOne({
+      _id: req.params.id,
+      approvalStatus: "APPROVED",
+      isActive: true,
+    }).select(
+      "storeName phone address location openingTime closingTime licenseNumber",
+    );
 
+    if (!pharmacy) {
+      return res.status(404).json({
+        success: false,
+        message: "Pharmacy not found",
+      });
+    }
+
+    const now = new Date();
+
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const [openHour, openMinute] = pharmacy.openingTime.split(":").map(Number);
+
+    const [closeHour, closeMinute] = pharmacy.closingTime
+      .split(":")
+      .map(Number);
+
+    const openingMinutes = openHour * 60 + openMinute;
+    const closingMinutes = closeHour * 60 + closeMinute;
+
+    const isOpen =
+      currentMinutes >= openingMinutes && currentMinutes <= closingMinutes;
+
+    res.json({
+      success: true,
+      pharmacy: {
+        ...pharmacy.toObject(),
+        isOpen,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+const getPharmacyMedicines = async (req, res, next) => {
+  try {
+    const pharmacy = await Pharmacy.findOne({
+      _id: req.params.id,
+      approvalStatus: "APPROVED",
+      isActive: true,
+    });
+
+    if (!pharmacy) {
+      return res.status(404).json({
+        success: false,
+        message: "Pharmacy not found",
+      });
+    }
+
+    const inventory = await PharmacyMedicine.find({
+      pharmacy: pharmacy._id,
+      isActive: true,
+      status: { $ne: "OUT_OF_STOCK" },
+    })
+      .populate(
+        "medicine",
+        "name genericName brandName category dosage description image prescriptionRequired",
+      )
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      pharmacy: {
+        id: pharmacy._id,
+        storeName: pharmacy.storeName,
+      },
+      count: inventory.length,
+      medicines: inventory,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 // =====================================================
 // EXPORT
 // =====================================================
@@ -508,4 +590,6 @@ module.exports = {
   getMyPharmacy,
   updatePharmacy,
   searchMedicineNearby,
+  getPharmacyDetails,
+  getPharmacyMedicines,
 };

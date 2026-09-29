@@ -46,3 +46,5 @@ const adminRoutes = require("./routes/admin.routes");
 app.use("/api/admin", adminRoutes);
 const medicineRoutes = require("./routes/medicine.routes");
 app.use("/api/medicines", medicineRoutes);
+const orderRoutes = require("./routes/order.routes");
+app.use("/api/orders", orderRoutes);
