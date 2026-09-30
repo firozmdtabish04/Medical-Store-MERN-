@@ -1,34 +1,70 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-// Layouts
+// =====================================================
+// LAYOUTS
+// =====================================================
+
 import PublicLayout from "./layouts/PublicLayout";
 import AppLayout from "./layouts/AppLayout";
 
-// Public Pages
+// =====================================================
+// PUBLIC PAGES
+// =====================================================
+
 import Home from "./pages/public/Home";
 import Services from "./pages/public/Services";
 import About from "./pages/public/About";
 import Contact from "./pages/public/Contact";
 
-// Auth Pages
+// =====================================================
+// AUTH PAGES
+// =====================================================
+
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 
-// Auth Protection
+// =====================================================
+// AUTH PROTECTION
+// =====================================================
+
 import ProtectedRoute from "./components/ProtectedRoute";
 
-// Dashboards
+// =====================================================
+// DASHBOARDS
+// =====================================================
+
 import CustomerDashboard from "./pages/dashboards/CustomerDashboard";
 import PharmacistDashboard from "./pages/dashboards/PharmacistDashboard";
 import DeliveryDashboard from "./pages/dashboards/DeliveryDashboard";
 import AdminDashboard from "./pages/dashboards/AdminDashboard";
 
-// Common Pages
+// =====================================================
+// CUSTOMER PAGES
+// =====================================================
+
+import Orders from "./pages/customer/Orders";
+import OrderDetails from "./pages/customer/OrderDetails";
+
+// =====================================================
+// COMMON PAGES
+// =====================================================
+
 import Profile from "./pages/dashboards/Profile";
 
-/* =========================================
-   403 PAGE
-========================================= */
+// =====================================================
+// ADMIN
+// =====================================================
+
+import Medicine from "./pages/medicine/Medicine";
+
+// =====================================================
+// PHARMACIST
+// =====================================================
+import Inventory from "./pages/pharmacist/Inventory";
+import PharmacyOrders from "./pages/pharmacist/PharmacyOrders";
+// =====================================================
+// 403 - UNAUTHORIZED
+// =====================================================
 
 function Unauthorized() {
   return (
@@ -46,9 +82,9 @@ function Unauthorized() {
   );
 }
 
-/* =========================================
-   TEMPORARY PAGE
-========================================= */
+// =====================================================
+// PAGE PLACEHOLDER
+// =====================================================
 
 function PagePlaceholder({ title }) {
   return (
@@ -64,17 +100,17 @@ function PagePlaceholder({ title }) {
   );
 }
 
-/* =========================================
-   APP
-========================================= */
+// =====================================================
+// APP
+// =====================================================
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* =====================================
+        {/* =================================================
             PUBLIC ROUTES
-        ===================================== */}
+        ================================================= */}
 
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Home />} />
@@ -90,9 +126,9 @@ function App() {
           <Route path="/register" element={<Register />} />
         </Route>
 
-        {/* =====================================
+        {/* =================================================
             CUSTOMER ROUTES
-        ===================================== */}
+        ================================================= */}
 
         <Route
           element={
@@ -101,29 +137,44 @@ function App() {
             </ProtectedRoute>
           }
         >
+          {/* Dashboard */}
+
           <Route path="/customer/dashboard" element={<CustomerDashboard />} />
 
+          {/* Profile */}
+
           <Route path="/customer/profile" element={<Profile />} />
+
+          {/* Find Medicine */}
 
           <Route
             path="/customer/medicines"
             element={<PagePlaceholder title="Find Medicine" />}
           />
 
+          {/* Nearby Pharmacies */}
+
           <Route
             path="/customer/pharmacies"
             element={<PagePlaceholder title="Nearby Pharmacies" />}
           />
+
+          {/* Cart */}
 
           <Route
             path="/customer/cart"
             element={<PagePlaceholder title="Cart" />}
           />
 
-          <Route
-            path="/customer/orders"
-            element={<PagePlaceholder title="My Orders" />}
-          />
+          {/* Orders */}
+
+          <Route path="/customer/orders" element={<Orders />} />
+
+          {/* Order Details */}
+
+          <Route path="/customer/orders/:id" element={<OrderDetails />} />
+
+          {/* Tracking */}
 
           <Route
             path="/customer/tracking"
@@ -131,9 +182,9 @@ function App() {
           />
         </Route>
 
-        {/* =====================================
+        {/* =================================================
             PHARMACIST ROUTES
-        ===================================== */}
+        ================================================= */}
 
         <Route
           element={
@@ -142,32 +193,33 @@ function App() {
             </ProtectedRoute>
           }
         >
+          {/* Dashboard */}
+
           <Route
             path="/pharmacist/dashboard"
             element={<PharmacistDashboard />}
           />
 
+          {/* Profile */}
+
           <Route path="/pharmacist/profile" element={<Profile />} />
+
+          {/* My Pharmacy */}
 
           <Route
             path="/pharmacist/pharmacy"
             element={<PagePlaceholder title="My Pharmacy" />}
           />
 
-          <Route
-            path="/pharmacist/medicines"
-            element={<PagePlaceholder title="Medicines" />}
-          />
+          {/* Inventory */}
 
-          <Route
-            path="/pharmacist/inventory"
-            element={<PagePlaceholder title="Inventory" />}
-          />
+          <Route path="/pharmacist/inventory" element={<Inventory />} />
 
-          <Route
-            path="/pharmacist/orders"
-            element={<PagePlaceholder title="Orders" />}
-          />
+          {/* Orders */}
+
+          <Route path="/pharmacist/orders" element={<PharmacyOrders />} />
+
+          {/* Sales */}
 
           <Route
             path="/pharmacist/sales"
@@ -175,9 +227,9 @@ function App() {
           />
         </Route>
 
-        {/* =====================================
+        {/* =================================================
             DELIVERY ROUTES
-        ===================================== */}
+        ================================================= */}
 
         <Route
           element={
@@ -186,24 +238,36 @@ function App() {
             </ProtectedRoute>
           }
         >
+          {/* Dashboard */}
+
           <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
 
+          {/* Profile */}
+
           <Route path="/delivery/profile" element={<Profile />} />
+
+          {/* Available Deliveries */}
 
           <Route
             path="/delivery/available"
             element={<PagePlaceholder title="Available Deliveries" />}
           />
 
+          {/* My Deliveries */}
+
           <Route
             path="/delivery/my-deliveries"
             element={<PagePlaceholder title="My Deliveries" />}
           />
 
+          {/* Active Delivery */}
+
           <Route
             path="/delivery/active"
             element={<PagePlaceholder title="Active Delivery" />}
           />
+
+          {/* Delivery History */}
 
           <Route
             path="/delivery/history"
@@ -211,9 +275,9 @@ function App() {
           />
         </Route>
 
-        {/* =====================================
+        {/* =================================================
             ADMIN ROUTES
-        ===================================== */}
+        ================================================= */}
 
         <Route
           element={
@@ -222,32 +286,43 @@ function App() {
             </ProtectedRoute>
           }
         >
+          {/* Dashboard */}
+
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+          {/* Users */}
 
           <Route
             path="/admin/users"
             element={<PagePlaceholder title="Users" />}
           />
 
+          {/* Pharmacies */}
+
           <Route
             path="/admin/pharmacies"
             element={<PagePlaceholder title="Pharmacies" />}
           />
 
-          <Route
-            path="/admin/medicines"
-            element={<PagePlaceholder title="Medicines" />}
-          />
+          {/* Medicine Master CRUD */}
+
+          <Route path="/admin/medicines" element={<Medicine />} />
+
+          {/* Orders */}
 
           <Route
             path="/admin/orders"
             element={<PagePlaceholder title="Orders" />}
           />
 
+          {/* Delivery Partners */}
+
           <Route
             path="/admin/delivery-partners"
             element={<PagePlaceholder title="Delivery Partners" />}
           />
+
+          {/* Settings */}
 
           <Route
             path="/admin/settings"
@@ -255,15 +330,15 @@ function App() {
           />
         </Route>
 
-        {/* =====================================
+        {/* =================================================
             UNAUTHORIZED
-        ===================================== */}
+        ================================================= */}
 
         <Route path="/unauthorized" element={<Unauthorized />} />
 
-        {/* =====================================
+        {/* =================================================
             404
-        ===================================== */}
+        ================================================= */}
 
         <Route
           path="*"

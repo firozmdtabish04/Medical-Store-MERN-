@@ -1,5 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
+
 import {
   LayoutDashboard,
   Search,
@@ -17,7 +18,12 @@ import {
   X,
   LogOut,
 } from "lucide-react";
+
 import { useAuth } from "../../context/AuthContext";
+
+/* =========================================================
+   MENU ITEMS
+========================================================= */
 
 const menuItems = {
   CUSTOMER: [
@@ -68,11 +74,6 @@ const menuItems = {
       label: "My Pharmacy",
       path: "/pharmacist/pharmacy",
       icon: Store,
-    },
-    {
-      label: "Medicines",
-      path: "/pharmacist/medicines",
-      icon: Pill,
     },
     {
       label: "Inventory",
@@ -168,11 +169,20 @@ const menuItems = {
   ],
 };
 
+/* =========================================================
+   SIDEBAR
+========================================================= */
+
 function Sidebar({ open = false, onClose }) {
   const { user, logout } = useAuth();
 
   const role = user?.role || "CUSTOMER";
+
   const items = menuItems[role] || menuItems.CUSTOMER;
+
+  /* =======================================================
+     LOGOUT
+  ======================================================= */
 
   const handleLogout = () => {
     onClose?.();
@@ -181,31 +191,50 @@ function Sidebar({ open = false, onClose }) {
 
   return (
     <>
-      {/* =========================================
+      {/* ===================================================
           MOBILE OVERLAY
-      ========================================= */}
+      =================================================== */}
+
       <div
         onClick={onClose}
         className={`
-          fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]
+          fixed inset-0 z-40
+          bg-black/50
+          backdrop-blur-[2px]
           transition-opacity duration-300
           lg:hidden
+
           ${open ? "visible opacity-100" : "invisible opacity-0"}
         `}
       />
 
-      {/* =========================================
+      {/* ===================================================
           SIDEBAR
-      ========================================= */}
+      =================================================== */}
+
       <aside
         className={`
-          fixed left-0 top-0 z-50
-          flex h-[100dvh] w-[280px] max-w-[85vw]
+          fixed
+          left-0
+          top-0
+          z-50
+
+          flex
+          h-[100dvh]
+          w-[280px]
+          max-w-[85vw]
           flex-col
-          border-r border-gray-200
+
+          border-r
+          border-gray-200
+
           bg-white
+
           shadow-2xl
-          transition-transform duration-300 ease-in-out
+
+          transition-transform
+          duration-300
+          ease-in-out
 
           lg:sticky
           lg:top-0
@@ -219,70 +248,134 @@ function Sidebar({ open = false, onClose }) {
           ${open ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* =========================================
+        {/* =================================================
             LOGO HEADER
-        ========================================= */}
-        <div className="px-4 h-16 justify-between border-b border-gray-100 flex shrink-0 items-center sm:px-5">
-          <div className="gap-3 min-w-0 flex items-center">
+        ================================================= */}
+
+        <div
+          className="
+            px-4 h-16 justify-between border-b border-gray-100 flex shrink-0 items-center sm:px-5
+          "
+        >
+          {/* Brand */}
+
+          <div
+            className="
+              gap-3 min-w-0 flex items-center
+            "
+          >
             {/* Logo */}
-            <div className="h-10 w-10 justify-center rounded-xl bg-green-600 text-white shadow-lg shadow-green-600/20 flex shrink-0 items-center">
+
+            <div
+              className="
+                h-10 w-10 justify-center rounded-xl bg-green-600 text-white shadow-lg shadow-green-600/20 flex shrink-0 items-center
+              "
+            >
               <Pill size={21} />
             </div>
 
-            {/* Brand */}
+            {/* Brand Text */}
+
             <div className="min-w-0">
-              <h1 className="text-xl font-extrabold text-gray-900 truncate">
-                Medi<span className="text-green-600">Find</span>
+              <h1
+                className="
+                  text-xl font-extrabold text-gray-900 truncate
+                "
+              >
+                Medi
+                <span className="text-green-600">Find</span>
               </h1>
 
-              <p className="text-[9px] font-semibold text-gray-400 truncate uppercase tracking-wider">
+              <p
+                className="
+                  text-[9px] font-semibold text-gray-400 truncate uppercase tracking-wider
+                "
+              >
                 Healthcare • Nearby • Fast
               </p>
             </div>
           </div>
 
           {/* Mobile Close */}
+
           <button
             type="button"
             onClick={onClose}
             aria-label="Close sidebar"
-            className="h-9 w-9 justify-center rounded-xl text-gray-500 flex shrink-0 items-center transition hover:bg-gray-100 hover:text-gray-900 lg:hidden"
+            className="
+              h-9 w-9 justify-center rounded-xl text-gray-500 flex shrink-0 items-center transition hover:bg-gray-100 hover:text-gray-900 lg:hidden
+            "
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* =========================================
+        {/* =================================================
             USER INFORMATION
-        ========================================= */}
-        <div className="mx-3 mt-4 p-4 rounded-2xl bg-green-50 shrink-0 sm:mx-4">
-          <div className="gap-3 flex items-center">
+        ================================================= */}
+
+        <div
+          className="
+            mx-3 mt-4 p-4 rounded-2xl bg-green-50 shrink-0 sm:mx-4
+          "
+        >
+          <div
+            className="
+              gap-3 flex items-center
+            "
+          >
             {/* Avatar */}
-            <div className="h-10 w-10 justify-center rounded-xl bg-green-600 text-sm font-bold text-white flex shrink-0 items-center">
+
+            <div
+              className="
+                h-10 w-10 justify-center rounded-xl bg-green-600 text-sm font-bold text-white flex shrink-0 items-center
+              "
+            >
               {user?.name?.charAt(0)?.toUpperCase() || "U"}
             </div>
+
+            {/* User */}
 
             <div className="min-w-0">
               <p className="text-[11px] font-medium text-gray-500">
                 Logged in as
               </p>
 
-              <p className="mt-0.5 text-sm font-bold text-gray-900 truncate">
+              <p
+                className="
+                  mt-0.5 text-sm font-bold text-gray-900 truncate
+                "
+              >
                 {user?.name || "User"}
               </p>
             </div>
           </div>
 
-          <span className="mt-3 px-2.5 py-1 rounded-full bg-green-100 text-[10px] font-bold text-green-700 inline-flex uppercase tracking-wide">
+          {/* Role */}
+
+          <span
+            className="
+              mt-3 px-2.5 py-1 rounded-full bg-green-100 text-[10px] font-bold text-green-700 inline-flex uppercase tracking-wide
+            "
+          >
             {role}
           </span>
         </div>
 
-        {/* =========================================
+        {/* =================================================
             NAVIGATION
-        ========================================= */}
-        <nav className="flex-1 px-3 pb-4 pt-5 min-h-0 overflow-y-auto sm:px-4">
-          <p className="mb-3 px-3 text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em]">
+        ================================================= */}
+
+        <nav
+          className="
+            flex-1 px-3 pb-4 pt-5 min-h-0 overflow-y-auto sm:px-4
+          "
+        >
+          <p
+            className="
+              mb-3 px-3 text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em]
+            "
+          >
             Main Menu
           </p>
 
@@ -297,10 +390,19 @@ function Sidebar({ open = false, onClose }) {
                   onClick={onClose}
                   className={({ isActive }) =>
                     `
-                    group flex min-h-[44px] items-center gap-3
-                    rounded-xl px-3 py-2.5
-                    text-sm font-semibold
-                    transition-all duration-200
+                    group
+                    flex
+                    min-h-[44px]
+                    items-center
+                    gap-3
+                    rounded-xl
+                    px-3
+                    py-2.5
+                    text-sm
+                    font-semibold
+                    transition-all
+                    duration-200
+
                     ${
                       isActive
                         ? `
@@ -326,7 +428,11 @@ function Sidebar({ open = false, onClose }) {
                         className="shrink-0"
                       />
 
-                      <span className="flex-1 min-w-0 truncate">
+                      <span
+                        className="
+                          flex-1 min-w-0 truncate
+                        "
+                      >
                         {item.label}
                       </span>
                     </>
@@ -337,10 +443,15 @@ function Sidebar({ open = false, onClose }) {
           </div>
         </nav>
 
-        {/* =========================================
+        {/* =================================================
             LOGOUT
-        ========================================= */}
-        <div className="p-3 border-t border-gray-100 bg-white shrink-0 sm:p-4">
+        ================================================= */}
+
+        <div
+          className="
+            p-3 border-t border-gray-100 bg-white shrink-0 sm:p-4
+          "
+        >
           <button
             type="button"
             onClick={handleLogout}
