@@ -14,26 +14,38 @@ import {
 
 import {
   ArrowBack,
-  LocalPharmacy,
+  CheckCircle,
   LocalShipping,
   LocationOn,
-  Payment,
+  Store,
 } from "@mui/icons-material";
 
 import { useNavigate, useParams } from "react-router-dom";
+
 import api from "../../services/api";
 
-const statusConfig = {
-  PENDING: ["Pending", "warning"],
-  PHARMACY_ACCEPTED: ["Accepted", "info"],
-  REJECTED: ["Rejected", "error"],
-  PACKING: ["Packing", "info"],
-  READY_FOR_PICKUP: ["Ready for Pickup", "success"],
-  DELIVERY_ASSIGNED: ["Delivery Assigned", "info"],
-  PICKED_UP: ["Picked Up", "info"],
-  OUT_FOR_DELIVERY: ["Out for Delivery", "primary"],
-  DELIVERED: ["Delivered", "success"],
-  CANCELLED: ["Cancelled", "error"],
+const STEPS = [
+  "PENDING",
+  "PHARMACY_ACCEPTED",
+  "PACKING",
+  "READY_FOR_PICKUP",
+  "DELIVERY_ASSIGNED",
+  "PICKED_UP",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+];
+
+const STATUS_LABELS = {
+  PENDING: "Order Placed",
+  PHARMACY_ACCEPTED: "Pharmacy Accepted",
+  PACKING: "Packing",
+  READY_FOR_PICKUP: "Ready for Pickup",
+  DELIVERY_ASSIGNED: "Delivery Assigned",
+  PICKED_UP: "Picked Up",
+  OUT_FOR_DELIVERY: "Out for Delivery",
+  DELIVERED: "Delivered",
+  REJECTED: "Rejected",
+  CANCELLED: "Cancelled",
 };
 
 function OrderDetails() {
@@ -47,14 +59,15 @@ function OrderDetails() {
   const fetchOrder = async () => {
     try {
       setLoading(true);
+      setError("");
 
       const response = await api.get(`/orders/${id}`);
 
-      setOrder(response.data.order);
-    } catch (error) {
-      console.error(error);
+      setOrder(response.data?.order || null);
+    } catch (err) {
+      console.error("Failed to load order:", err);
 
-      setError(error.response?.data?.message || "Failed to load order");
+      setError(err.response?.data?.message || "Failed to load order");
     } finally {
       setLoading(false);
     }
@@ -68,9 +81,10 @@ function OrderDetails() {
     return (
       <Box
         sx={{
+          minHeight: "70vh",
           display: "flex",
           justifyContent: "center",
-          py: 12,
+          alignItems: "center",
         }}
       >
         <CircularProgress />
@@ -78,134 +92,233 @@ function OrderDetails() {
     );
   }
 
-  if (error) {
+  if (error || !order) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">{error}</Alert>
+      <Box sx={{ p: 4 }}>
+        <Alert severity="error">{error || "Order not found"}</Alert>
+
+        <Button
+          sx={{ mt: 2 }}
+          startIcon={<ArrowBack />}
+          onClick={() => navigate("/customer/orders")}
+        >
+          Back to Orders
+        </Button>
       </Box>
     );
   }
 
-  if (!order) return null;
+  const currentIndex = STEPS.indexOf(order.orderStatus);
 
-  const status = statusConfig[order.orderStatus] || [
-    order.orderStatus,
-    "default",
-  ];
+  const isRejected = order.orderStatus === "REJECTED";
+
+  const isCancelled = order.orderStatus === "CANCELLED";
 
   return (
     <Box
       sx={{
-        minHeight: "100%",
-        backgroundColor: "#f8fafc",
-        p: { xs: 2, md: 4 },
+        minHeight: "100vh",
+        bgcolor: "#f8fafc",
+        p: {
+          xs: 2,
+          sm: 3,
+          md: 4,
+        },
       }}
     >
-      {/* BACK */}
+      {/* HEADER */}
 
       <Button
         startIcon={<ArrowBack />}
         onClick={() => navigate("/customer/orders")}
-        sx={{
-          mb: 2,
-          textTransform: "none",
-        }}
+        sx={{ mb: 2 }}
       >
         Back to Orders
       </Button>
 
-      {/* HEADER */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight={800}>
+          Order #{order._id?.slice(-8).toUpperCase()}
+        </Typography>
 
-      <Card
-        elevation={0}
-        sx={{
-          border: "1px solid #e2e8f0",
-          borderRadius: "16px",
-          mb: 2,
-        }}
-      >
-        <CardContent sx={{ p: 3 }}>
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: {
-                xs: "flex-start",
-                sm: "center",
-              },
-              flexDirection: {
-                xs: "column",
-                sm: "row",
-              },
-              gap: 2,
-            }}
-          >
-            <Box>
-              <Typography variant="h5" fontWeight={800}>
-                Order #{order._id.slice(-8)}
-              </Typography>
+        <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+          {order.createdAt ? new Date(order.createdAt).toLocaleString() : "-"}
+        </Typography>
+      </Box>
 
-              <Typography variant="body2" color="text.secondary" mt={0.5}>
-                {new Date(order.createdAt).toLocaleString()}
-              </Typography>
-            </Box>
+      {/* REJECTED */}
 
-            <Chip label={status[0]} color={status[1]} />
-          </Box>
-        </CardContent>
-      </Card>
+      {isRejected && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          This order was rejected by the pharmacy.
+        </Alert>
+      )}
+
+      {isCancelled && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          This order has been cancelled.
+        </Alert>
+      )}
 
       {/* STATUS */}
 
+      {!isRejected && !isCancelled && (
+        <Card
+          elevation={0}
+          sx={{
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 3,
+            mb: 3,
+          }}
+        >
+          <CardContent sx={{ p: 3 }}>
+            <Typography variant="h6" fontWeight={800} sx={{ mb: 3 }}>
+              Order Status
+            </Typography>
+
+            <Stack spacing={2}>
+              {STEPS.map((step, index) => {
+                const completed = currentIndex >= index;
+
+                const active = currentIndex === index;
+
+                return (
+                  <Box
+                    key={step}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 2,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                        bgcolor: completed ? "success.main" : "grey.200",
+                        color: completed ? "white" : "text.secondary",
+                      }}
+                    >
+                      {completed ? <CheckCircle fontSize="small" /> : index + 1}
+                    </Box>
+
+                    <Box>
+                      <Typography fontWeight={active ? 800 : 600}>
+                        {STATUS_LABELS[step]}
+                      </Typography>
+
+                      {active && (
+                        <Typography variant="caption" color="text.secondary">
+                          Current status
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PHARMACY */}
+
       <Card
         elevation={0}
         sx={{
-          border: "1px solid #e2e8f0",
-          borderRadius: "16px",
-          mb: 2,
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 3,
+          mb: 3,
         }}
       >
         <CardContent sx={{ p: 3 }}>
-          <Typography variant="h6" fontWeight={800} mb={3}>
-            Order Status
+          <Stack direction="row" spacing={2} alignItems="flex-start">
+            <Store color="primary" />
+
+            <Box>
+              <Typography variant="h6" fontWeight={800}>
+                {order.pharmacy?.storeName || "Pharmacy"}
+              </Typography>
+
+              <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+                {order.pharmacy?.phone || ""}
+              </Typography>
+
+              <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+                {order.pharmacy?.address?.street || ""}
+                {order.pharmacy?.address?.city
+                  ? `, ${order.pharmacy.address.city}`
+                  : ""}
+              </Typography>
+            </Box>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {/* ITEMS */}
+
+      <Card
+        elevation={0}
+        sx={{
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 3,
+          mb: 3,
+        }}
+      >
+        <CardContent sx={{ p: 3 }}>
+          <Typography variant="h6" fontWeight={800} sx={{ mb: 2 }}>
+            Medicines
           </Typography>
 
           <Stack spacing={2}>
-            {[
-              "PENDING",
-              "PHARMACY_ACCEPTED",
-              "PACKING",
-              "READY_FOR_PICKUP",
-              "DELIVERY_ASSIGNED",
-              "OUT_FOR_DELIVERY",
-              "DELIVERED",
-            ].map((item) => {
-              const active = item === order.orderStatus;
+            {order.items?.map((item, index) => {
+              const price = Number(item.price || 0);
+
+              const discount = Number(item.discount || 0);
+
+              const effectivePrice = price - (price * discount) / 100;
 
               return (
-                <Box
-                  key={item}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 2,
-                  }}
-                >
+                <Box key={index}>
                   <Box
                     sx={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: "50%",
-                      backgroundColor: active ? "#1976d2" : "#cbd5e1",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 2,
                     }}
-                  />
-
-                  <Typography
-                    fontWeight={active ? 700 : 400}
-                    color={active ? "#1976d2" : "text.secondary"}
                   >
-                    {statusConfig[item]?.[0] || item}
-                  </Typography>
+                    <Box>
+                      <Typography fontWeight={700}>
+                        {item.medicine?.name || "Medicine"}
+                      </Typography>
+
+                      <Typography variant="body2" color="text.secondary">
+                        Quantity: {item.quantity}
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ textAlign: "right" }}>
+                      <Typography fontWeight={800}>
+                        ₹{(effectivePrice * item.quantity).toFixed(2)}
+                      </Typography>
+
+                      {discount > 0 && (
+                        <Typography variant="caption" color="success.main">
+                          {discount}% discount
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+
+                  {index < order.items.length - 1 && <Divider sx={{ mt: 2 }} />}
                 </Box>
               );
             })}
@@ -213,187 +326,151 @@ function OrderDetails() {
         </CardContent>
       </Card>
 
-      {/* MAIN GRID */}
+      {/* DELIVERY */}
 
-      <Box
+      <Card
+        elevation={0}
         sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "1fr",
-            lg: "1.5fr 1fr",
-          },
-          gap: 2,
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 3,
+          mb: 3,
         }}
       >
-        {/* ITEMS */}
+        <CardContent sx={{ p: 3 }}>
+          <Typography variant="h6" fontWeight={800} sx={{ mb: 2 }}>
+            Delivery Address
+          </Typography>
 
-        <Card
-          elevation={0}
-          sx={{
-            border: "1px solid #e2e8f0",
-            borderRadius: "16px",
-          }}
-        >
-          <CardContent sx={{ p: 3 }}>
-            <Typography variant="h6" fontWeight={800} mb={2}>
-              Medicines
+          <Stack direction="row" spacing={2}>
+            <LocationOn color="primary" />
+
+            <Typography>
+              {order.deliveryAddress?.street}
+              {order.deliveryAddress?.city
+                ? `, ${order.deliveryAddress.city}`
+                : ""}
+              {order.deliveryAddress?.state
+                ? `, ${order.deliveryAddress.state}`
+                : ""}
+              {order.deliveryAddress?.pincode
+                ? ` - ${order.deliveryAddress.pincode}`
+                : ""}
             </Typography>
-
-            {order.items?.map((item, index) => (
-              <Box key={item._id || index}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    py: 1.5,
-                  }}
-                >
-                  <Box>
-                    <Typography fontWeight={700}>
-                      {item.medicine?.name}
-                    </Typography>
-
-                    <Typography variant="body2" color="text.secondary">
-                      Qty: {item.quantity}
-                    </Typography>
-                  </Box>
-
-                  <Typography fontWeight={700}>
-                    ₹{Number(item.price || 0).toFixed(2)}
-                  </Typography>
-                </Box>
-
-                {index < order.items.length - 1 && <Divider />}
-              </Box>
-            ))}
-
-            <Divider sx={{ my: 2 }} />
-
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-              }}
-            >
-              <Typography variant="h6" fontWeight={800}>
-                Total
-              </Typography>
-
-              <Typography variant="h6" fontWeight={800} color="primary">
-                ₹{Number(order.totalAmount || 0).toFixed(2)}
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
-
-        {/* DETAILS */}
-
-        <Stack spacing={2}>
-          {/* PHARMACY */}
-
-          <Card
-            elevation={0}
-            sx={{
-              border: "1px solid #e2e8f0",
-              borderRadius: "16px",
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Stack direction="row" spacing={1.5}>
-                <LocalPharmacy color="primary" />
-
-                <Box>
-                  <Typography fontWeight={800}>Pharmacy</Typography>
-
-                  <Typography mt={0.5}>{order.pharmacy?.storeName}</Typography>
-
-                  <Typography variant="body2" color="text.secondary">
-                    {order.pharmacy?.phone}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-
-          {/* ADDRESS */}
-
-          <Card
-            elevation={0}
-            sx={{
-              border: "1px solid #e2e8f0",
-              borderRadius: "16px",
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Stack direction="row" spacing={1.5}>
-                <LocationOn color="primary" />
-
-                <Box>
-                  <Typography fontWeight={800}>Delivery Address</Typography>
-
-                  <Typography variant="body2" color="text.secondary" mt={0.5}>
-                    {order.deliveryAddress?.address || "Delivery address"}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-
-          {/* PAYMENT */}
-
-          <Card
-            elevation={0}
-            sx={{
-              border: "1px solid #e2e8f0",
-              borderRadius: "16px",
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Stack direction="row" spacing={1.5}>
-                <Payment color="primary" />
-
-                <Box>
-                  <Typography fontWeight={800}>Payment</Typography>
-
-                  <Typography variant="body2" mt={0.5}>
-                    {order.paymentStatus}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-
-          {/* DELIVERY */}
+          </Stack>
 
           {order.deliveryPartner && (
-            <Card
-              elevation={0}
+            <Box
               sx={{
-                border: "1px solid #e2e8f0",
-                borderRadius: "16px",
+                mt: 3,
+                p: 2,
+                borderRadius: 2,
+                bgcolor: "primary.50",
               }}
             >
-              <CardContent sx={{ p: 3 }}>
-                <Stack direction="row" spacing={1.5}>
-                  <LocalShipping color="primary" />
+              <Stack direction="row" spacing={2} alignItems="center">
+                <LocalShipping color="primary" />
 
-                  <Box>
-                    <Typography fontWeight={800}>Delivery Partner</Typography>
+                <Box>
+                  <Typography fontWeight={700}>Delivery Partner</Typography>
 
-                    <Typography mt={0.5}>
-                      {order.deliveryPartner.name}
-                    </Typography>
-
-                    <Typography variant="body2" color="text.secondary">
-                      {order.deliveryPartner.phone}
-                    </Typography>
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
+                  <Typography variant="body2" color="text.secondary">
+                    {order.deliveryPartner.name}
+                    {" • "}
+                    {order.deliveryPartner.phone}
+                  </Typography>
+                </Box>
+              </Stack>
+            </Box>
           )}
-        </Stack>
-      </Box>
+        </CardContent>
+      </Card>
+
+      {/* PAYMENT */}
+
+      <Card
+        elevation={0}
+        sx={{
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 3,
+        }}
+      >
+        <CardContent sx={{ p: 3 }}>
+          <Typography variant="h6" fontWeight={800} sx={{ mb: 2 }}>
+            Payment Summary
+          </Typography>
+
+          <Stack spacing={1.5}>
+            <SummaryRow
+              label="Subtotal"
+              value={`₹${Number(order.subtotal || 0).toFixed(2)}`}
+            />
+
+            <SummaryRow
+              label="Delivery Fee"
+              value={`₹${Number(order.deliveryFee || 0).toFixed(2)}`}
+            />
+
+            <SummaryRow
+              label="Discount"
+              value={`- ₹${Number(order.discount || 0).toFixed(2)}`}
+            />
+
+            <Divider />
+
+            <SummaryRow
+              label="Total"
+              value={`₹${Number(order.totalAmount || 0).toFixed(2)}`}
+              strong
+            />
+
+            <Chip
+              label={`Payment: ${order.paymentStatus}`}
+              color={
+                order.paymentStatus === "SUCCESS"
+                  ? "success"
+                  : order.paymentStatus === "FAILED"
+                    ? "error"
+                    : "warning"
+              }
+              sx={{ alignSelf: "flex-start" }}
+            />
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {/* TRACK BUTTON */}
+
+      {["DELIVERY_ASSIGNED", "PICKED_UP", "OUT_FOR_DELIVERY"].includes(
+        order.orderStatus,
+      ) && (
+        <Button
+          fullWidth
+          variant="contained"
+          size="large"
+          startIcon={<LocalShipping />}
+          sx={{ mt: 3 }}
+          onClick={() => navigate(`/customer/tracking?order=${order._id}`)}
+        >
+          Track Delivery
+        </Button>
+      )}
+    </Box>
+  );
+}
+
+function SummaryRow({ label, value, strong = false }) {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "space-between",
+      }}
+    >
+      <Typography fontWeight={strong ? 800 : 500}>{label}</Typography>
+
+      <Typography fontWeight={strong ? 800 : 600}>{value}</Typography>
     </Box>
   );
 }

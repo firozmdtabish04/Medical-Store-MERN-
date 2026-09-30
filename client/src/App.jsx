@@ -19,10 +19,10 @@ import Contact from "./pages/public/Contact";
 // =====================================================
 // AUTH PAGES
 // =====================================================
-
+import Medicines from "./pages/customer/Medicines";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
-
+import Medicine from "./pages/medicine/Medicine";
 // =====================================================
 // AUTH PROTECTION
 // =====================================================
@@ -43,20 +43,19 @@ import AdminDashboard from "./pages/dashboards/AdminDashboard";
 // =====================================================
 
 import Orders from "./pages/customer/Orders";
-import OrderDetails from "./pages/customer/OrderDetails";
 
 // =====================================================
 // COMMON PAGES
 // =====================================================
 
 import Profile from "./pages/dashboards/Profile";
-
+import Cart from "./pages/customer/Cart";
 // =====================================================
 // ADMIN
 // =====================================================
 
-import Medicine from "./pages/medicine/Medicine";
-
+import OrderDetails from "./pages/customer/OrderDetails";
+import OrderTracking from "./pages/customer/OrderTracking";
 // =====================================================
 // PHARMACIST
 // =====================================================
@@ -147,10 +146,7 @@ function App() {
 
           {/* Find Medicine */}
 
-          <Route
-            path="/customer/medicines"
-            element={<PagePlaceholder title="Find Medicine" />}
-          />
+          <Route path="/customer/medicines" element={<Medicines />} />
 
           {/* Nearby Pharmacies */}
 
@@ -161,10 +157,7 @@ function App() {
 
           {/* Cart */}
 
-          <Route
-            path="/customer/cart"
-            element={<PagePlaceholder title="Cart" />}
-          />
+          <Route path="/customer/cart" element={<Cart />} />
 
           {/* Orders */}
 
@@ -176,10 +169,7 @@ function App() {
 
           {/* Tracking */}
 
-          <Route
-            path="/customer/tracking"
-            element={<PagePlaceholder title="Order Tracking" />}
-          />
+          <Route path="/customer/tracking" element={<OrderTracking />} />
         </Route>
 
         {/* =================================================
