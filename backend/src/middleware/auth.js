@@ -8,11 +8,18 @@ const protect = async (req, res, next) => {
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required",
+        message: "Not authorized. Token required.",
       });
     }
 
     const token = authHeader.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Not authorized. Token missing.",
+      });
+    }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
@@ -21,25 +28,43 @@ const protect = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "User not found",
+        message: "User no longer exists.",
       });
     }
 
     if (!user.isActive) {
       return res.status(403).json({
         success: false,
-        message: "Account is inactive",
+        message: "Account is inactive.",
       });
     }
 
-    req.user = user;
+    req.user = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isActive: user.isActive,
+    };
 
     next();
   } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid or expired token",
-    });
+    if (error.name === "JsonWebTokenError") {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token.",
+      });
+    }
+
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({
+        success: false,
+        message: "Token expired. Please login again.",
+      });
+    }
+
+    next(error);
   }
 };
 
