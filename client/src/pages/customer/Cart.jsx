@@ -8,6 +8,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { dispatchCartUpdate } from "../../hooks/useCartCount";
 
 export default function Cart() {
   const navigate = useNavigate();
@@ -89,6 +90,7 @@ export default function Cart() {
   // Save cart whenever it changes
   useEffect(() => {
     localStorage.setItem("medifind_cart", JSON.stringify(cart));
+    dispatchCartUpdate();
   }, [cart]);
 
   const increaseQuantity = (inventoryId) => {

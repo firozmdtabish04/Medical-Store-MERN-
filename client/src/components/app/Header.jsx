@@ -1,109 +1,470 @@
-import React from "react";
-import { Bell, Search, User, Menu, MapPin } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  Bell,
+  Search,
+  User,
+  Menu,
+  MapPin,
+  ShoppingCart,
+  X,
+  ChevronDown,
+  Check,
+  LogOut,
+  Settings,
+  ShieldCheck,
+  CheckCircle2,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useCartCount } from "../../hooks/useCartCount";
+
+const CITIES = [
+  "Bhubaneswar",
+  "Cuttack",
+  "Puri",
+  "Rourkela",
+  "Berhampur",
+  "Sambalpur",
+];
+
+const INITIAL_NOTIFICATIONS = [
+  {
+    id: 1,
+    title: "Prescription Network Active",
+    message: "Verified pharmacies around you are online and ready to dispense.",
+    time: "Just now",
+    read: false,
+  },
+  {
+    id: 2,
+    title: "Fast Medicine Delivery",
+    message: "Order by 8 PM for lightning fast doorstep courier delivery.",
+    time: "1 hour ago",
+    read: false,
+  },
+  {
+    id: 3,
+    title: "Welcome to MediFind",
+    message: "Find genuine medicines, check store stocks, and track orders.",
+    time: "Today",
+    read: true,
+  },
+];
 
 function Header({ onMenuClick }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const { cartCount } = useCartCount();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Search State
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Sync search input if currently on /customer/medicines with ?search= query
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const searchParam = params.get("search");
+    if (location.pathname === "/customer/medicines" && searchParam !== null) {
+      setSearchQuery(searchParam);
+    }
+  }, [location.pathname, location.search]);
+
+  // Location State
+  const [currentCity, setCurrentCity] = useState(() => {
+    return localStorage.getItem("medifind_city") || "Bhubaneswar";
+  });
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+
+  // Notifications State
+  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Profile Dropdown State
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+
+  // Refs for click outside
+  const cityRef = useRef(null);
+  const notifRef = useRef(null);
+  const profileRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (cityRef.current && !cityRef.current.contains(e.target)) {
+        setCityDropdownOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotificationsOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    const query = searchQuery.trim();
+    if (query) {
+      navigate(`/customer/medicines?search=${encodeURIComponent(query)}`);
+    } else if (location.pathname === "/customer/medicines") {
+      navigate("/customer/medicines");
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    if (location.pathname === "/customer/medicines") {
+      navigate("/customer/medicines");
+    }
+  };
+
+  const handleSelectCity = (city) => {
+    setCurrentCity(city);
+    localStorage.setItem("medifind_city", city);
+    setCityDropdownOpen(false);
+  };
+
+  const handleMarkAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const getProfileLink = () => {
+    const r = (user?.role || "CUSTOMER").toUpperCase();
+    if (r === "PHARMACIST") return "/pharmacist/profile";
+    if (r === "DELIVERY") return "/delivery/profile";
+    if (r === "ADMIN") return "/admin/settings";
+    return "/customer/profile";
+  };
+
+  const role = user?.role || "CUSTOMER";
 
   return (
-    <header className="top-0 z-40 border-b border-gray-200 bg-white sticky">
-      <div className="px-3 h-16 justify-between flex items-center sm:px-5 lg:px-6">
-        {/* LEFT */}
-        <div className="gap-2 flex items-center">
-          {/* HAMBURGER */}
+    <header className="sticky top-0 z-40 border-b border-gray-200 bg-white">
+      <div className="flex h-16 items-center justify-between px-3 sm:px-5 lg:px-6">
+        {/* =================================================
+            LEFT SECTION
+        ================================================= */}
+        <div className="flex items-center gap-2 lg:gap-3">
+          {/* HAMBURGER (Mobile) */}
           <button
             type="button"
             onClick={onMenuClick}
-            className="h-10 w-10 justify-center rounded-xl text-gray-600 flex items-center hover:bg-gray-100 active:bg-gray-200 lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-600 transition hover:bg-gray-100 active:bg-gray-200 lg:hidden"
             aria-label="Open menu"
           >
-            <Menu size={24} />
+            <Menu size={22} />
           </button>
 
-          {/* Mobile Logo */}
-          <div className="gap-2 flex items-center lg:hidden">
-            <div className="h-9 w-9 justify-center rounded-xl bg-green-600 text-white flex items-center">
+          {/* Mobile Brand Logo */}
+          <div
+            onClick={() => navigate("/")}
+            className="flex cursor-pointer items-center gap-2 lg:hidden"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-600 text-white shadow-sm">
               <MapPin size={18} />
             </div>
 
-            <div className="min-[480px]:block hidden">
-              <p className="text-sm font-extrabold text-gray-900">
+            <div className="hidden min-[480px]:block">
+              <p className="text-sm font-extrabold text-gray-900 leading-none">
                 Medi<span className="text-green-600">Find</span>
               </p>
-
-              <p className="text-[9px] font-semibold text-gray-400 uppercase">
-                {user?.role || "CUSTOMER"}
+              <p className="mt-0.5 text-[9px] font-bold text-gray-400 uppercase tracking-wider">
+                {role}
               </p>
             </div>
           </div>
 
-          {/* Desktop Search */}
-          <div className="relative hidden lg:block">
+          {/* Desktop Search (Live Form) */}
+          <form
+            onSubmit={handleSearchSubmit}
+            className="relative hidden lg:block"
+          >
             <Search
               size={18}
-              className="top-1/2 text-gray-400 absolute left-3 -translate-y-1/2"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
             />
 
             <input
               type="text"
-              placeholder="Search medicines..."
-              className="h-11 w-64 rounded-xl border border-gray-200 bg-gray-50 text-sm pl-10 pr-4 outline-none focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-100 xl:w-80"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search medicines, stores, salts..."
+              className="h-11 w-64 rounded-xl border border-gray-200 bg-gray-50 pl-10 pr-9 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-100 xl:w-80"
             />
-          </div>
+
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label="Clear search"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </form>
         </div>
 
-        {/* RIGHT */}
-        <div className="gap-1 flex items-center sm:gap-3">
-          {/* Location */}
-          <button className="gap-2 px-3 py-2 rounded-xl text-sm text-gray-600 hidden items-center hover:bg-gray-100 sm:flex">
-            <MapPin size={18} className="text-green-600" />
+        {/* =================================================
+            RIGHT SECTION
+        ================================================= */}
+        <div className="flex items-center gap-1.5 sm:gap-3">
+          {/* LOCATION SELECTOR */}
+          <div className="relative hidden sm:block" ref={cityRef}>
+            <button
+              type="button"
+              onClick={() => setCityDropdownOpen(!cityDropdownOpen)}
+              className="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-gray-200 hover:bg-gray-100"
+              title="Select location"
+            >
+              <MapPin size={17} className="text-green-600 shrink-0" />
+              <span className="max-w-[110px] truncate text-xs font-semibold text-gray-800 md:max-w-none md:text-sm">
+                {currentCity}
+              </span>
+              <ChevronDown
+                size={14}
+                className={`text-gray-400 transition-transform duration-200 ${
+                  cityDropdownOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
 
-            <span className="hidden md:block">Bhubaneswar</span>
-          </button>
+            {/* City Dropdown Menu */}
+            {cityDropdownOpen && (
+              <div className="absolute left-0 mt-2 w-52 rounded-2xl border border-gray-100 bg-white p-2 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                  Select Delivery City
+                </p>
+                <div className="space-y-0.5">
+                  {CITIES.map((city) => (
+                    <button
+                      key={city}
+                      type="button"
+                      onClick={() => handleSelectCity(city)}
+                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                        currentCity === city
+                          ? "bg-green-50 text-green-700 font-bold"
+                          : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <span>{city}</span>
+                      {currentCity === city && (
+                        <Check size={14} className="text-green-600" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
-          {/* Notification */}
-          <button
-            type="button"
-            className="h-10 w-10 justify-center rounded-xl text-gray-600 relative flex items-center hover:bg-gray-100"
-          >
-            <Bell size={20} />
+          {/* CART QUICK LINK (Live Cart Count Badge) */}
+          {role === "CUSTOMER" && (
+            <button
+              type="button"
+              onClick={() => navigate("/customer/cart")}
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl text-gray-600 transition hover:bg-gray-100 active:scale-95"
+              title="View Cart"
+              aria-label="Shopping Cart"
+            >
+              <ShoppingCart size={20} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-600 px-1 text-[10px] font-extrabold text-white shadow-sm ring-2 ring-white">
+                  {cartCount > 99 ? "99+" : cartCount}
+                </span>
+              )}
+            </button>
+          )}
 
-            <span className="top-2 h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500 absolute right-2" />
-          </button>
+          {/* NOTIFICATIONS DROPDOWN */}
+          <div className="relative" ref={notifRef}>
+            <button
+              type="button"
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl text-gray-600 transition hover:bg-gray-100 active:scale-95"
+              aria-label="Notifications"
+            >
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white animate-pulse" />
+              )}
+            </button>
 
-          {/* User */}
-          <div className="gap-2 flex items-center sm:gap-3">
-            <div className="text-right hidden lg:block">
-              <p className="text-sm font-bold text-gray-900">
-                {user?.name || "User"}
-              </p>
+            {/* Notification Dropdown Panel */}
+            {notificationsOpen && (
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-gray-100 bg-white p-3 shadow-2xl z-50">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-2.5 px-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-gray-900">
+                      Notifications
+                    </h3>
+                    {unreadCount > 0 && (
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleMarkAllNotificationsRead}
+                      className="text-xs font-semibold text-green-600 hover:text-green-700 hover:underline"
+                    >
+                      Mark all as read
+                    </button>
+                  )}
+                </div>
 
-              <p className="text-xs text-gray-500">
-                {user?.role || "CUSTOMER"}
-              </p>
-            </div>
+                <div className="mt-2 divide-y divide-gray-50 max-h-72 overflow-y-auto">
+                  {notifications.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`p-2.5 rounded-xl transition ${
+                        item.read ? "bg-white" : "bg-green-50/50"
+                      } hover:bg-gray-50`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-bold text-gray-900">
+                          {item.title}
+                        </p>
+                        <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                          {item.time}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-600 leading-relaxed">
+                        {item.message}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
-            <div className="h-10 w-10 justify-center rounded-xl bg-green-100 text-green-600 flex items-center">
-              <User size={20} />
-            </div>
+          {/* USER PROFILE DROPDOWN */}
+          <div className="relative" ref={profileRef}>
+            <button
+              type="button"
+              onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+              className="flex items-center gap-2 rounded-xl p-1 text-left transition hover:bg-gray-100 active:scale-95 sm:gap-3 sm:px-2 sm:py-1.5"
+              aria-label="User profile menu"
+            >
+              {/* User text on desktop */}
+              <div className="hidden text-right lg:block">
+                <p className="text-sm font-bold text-gray-900 max-w-[120px] truncate leading-tight">
+                  {user?.name || "User"}
+                </p>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                  {role}
+                </p>
+              </div>
+
+              {/* Avatar circle with initial */}
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-600 text-sm font-extrabold text-white shadow-sm ring-2 ring-green-100">
+                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+              </div>
+
+              <ChevronDown
+                size={14}
+                className={`hidden text-gray-400 sm:block transition-transform duration-200 ${
+                  profileDropdownOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {/* Profile Dropdown Menu */}
+            {profileDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-gray-100 bg-white p-2 shadow-2xl z-50">
+                {/* User info banner */}
+                <div className="rounded-xl bg-gray-50 p-3 mb-1">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-600 text-xs font-bold text-white">
+                      {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-gray-900 truncate">
+                        {user?.name || "User"}
+                      </p>
+                      <p className="text-[11px] text-gray-500 truncate">
+                        {user?.email || "No email"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between border-t border-gray-200/60 pt-2">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase">
+                      Role
+                    </span>
+                    <span className="rounded-md bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700 uppercase">
+                      {role}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      navigate(getProfileLink());
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
+                  >
+                    <User size={16} className="text-gray-400" />
+                    <span>My Profile</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      logout();
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+                  >
+                    <LogOut size={16} />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Mobile Search */}
-      <div className="px-3 py-2 border-t border-gray-100 lg:hidden">
-        <div className="relative">
+      {/* =================================================
+          MOBILE SEARCH BAR (Live Form)
+      ================================================= */}
+      <div className="border-t border-gray-100 px-3 py-2 lg:hidden">
+        <form onSubmit={handleSearchSubmit} className="relative">
           <Search
             size={18}
-            className="top-1/2 text-gray-400 absolute left-3 -translate-y-1/2"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
           />
 
           <input
             type="text"
-            placeholder="Search medicines..."
-            className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 text-sm pl-10 pr-4 outline-none focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-100"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search medicines, stores, salts..."
+            className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 pl-10 pr-9 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-100"
           />
-        </div>
+
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              aria-label="Clear mobile search"
+            >
+              <X size={15} />
+            </button>
+          )}
+        </form>
       </div>
     </header>
   );

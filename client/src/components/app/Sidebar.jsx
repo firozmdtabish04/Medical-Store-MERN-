@@ -1,5 +1,5 @@
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, Link } from "react-router-dom";
 
 import {
   LayoutDashboard,
@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
+import { useCartCount } from "../../hooks/useCartCount";
 
 /* =========================================================
    MENU ITEMS
@@ -175,8 +176,18 @@ const menuItems = {
 
 function Sidebar({ open = false, onClose }) {
   const { user, logout } = useAuth();
+  const { cartCount } = useCartCount();
 
   const role = user?.role || "CUSTOMER";
+
+  const profilePath =
+    role === "PHARMACIST"
+      ? "/pharmacist/profile"
+      : role === "DELIVERY"
+      ? "/delivery/profile"
+      : role === "ADMIN"
+      ? "/admin/settings"
+      : "/customer/profile";
 
   const items = menuItems[role] || menuItems.CUSTOMER;
 
@@ -314,10 +325,13 @@ function Sidebar({ open = false, onClose }) {
             USER INFORMATION
         ================================================= */}
 
-        <div
+        <Link
+          to={profilePath}
+          onClick={onClose}
           className="
-            mx-3 mt-4 p-4 rounded-2xl bg-green-50 shrink-0 sm:mx-4
+            mx-3 mt-4 p-4 rounded-2xl bg-green-50 shrink-0 sm:mx-4 transition block hover:bg-green-100/70 active:scale-[0.98] group
           "
+          title="View your profile"
         >
           <div
             className="
@@ -328,7 +342,7 @@ function Sidebar({ open = false, onClose }) {
 
             <div
               className="
-                h-10 w-10 justify-center rounded-xl bg-green-600 text-sm font-bold text-white flex shrink-0 items-center
+                h-10 w-10 justify-center rounded-xl bg-green-600 text-sm font-bold text-white shadow-sm flex shrink-0 items-center group-hover:scale-105 transition-transform
               "
             >
               {user?.name?.charAt(0)?.toUpperCase() || "U"}
@@ -336,14 +350,14 @@ function Sidebar({ open = false, onClose }) {
 
             {/* User */}
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-[11px] font-medium text-gray-500">
                 Logged in as
               </p>
 
               <p
                 className="
-                  mt-0.5 text-sm font-bold text-gray-900 truncate
+                  mt-0.5 text-sm font-bold text-gray-900 truncate group-hover:text-green-800
                 "
               >
                 {user?.name || "User"}
@@ -353,14 +367,20 @@ function Sidebar({ open = false, onClose }) {
 
           {/* Role */}
 
-          <span
-            className="
-              mt-3 px-2.5 py-1 rounded-full bg-green-100 text-[10px] font-bold text-green-700 inline-flex uppercase tracking-wide
-            "
-          >
-            {role}
-          </span>
-        </div>
+          <div className="mt-3 flex items-center justify-between">
+            <span
+              className="
+                px-2.5 py-1 rounded-full bg-green-100 text-[10px] font-bold text-green-700 inline-flex uppercase tracking-wide
+              "
+            >
+              {role}
+            </span>
+
+            <span className="text-[11px] font-semibold text-green-600 group-hover:underline">
+              Profile &rarr;
+            </span>
+          </div>
+        </Link>
 
         {/* =================================================
             NAVIGATION
@@ -435,6 +455,21 @@ function Sidebar({ open = false, onClose }) {
                       >
                         {item.label}
                       </span>
+
+                      {item.label === "Cart" && cartCount > 0 && (
+                        <span
+                          className={`
+                            ml-auto px-2 py-0.5 rounded-full text-xs font-bold transition shrink-0
+                            ${
+                              isActive
+                                ? "bg-white text-green-700 shadow-sm"
+                                : "bg-green-100 text-green-700"
+                            }
+                          `}
+                        >
+                          {cartCount > 99 ? "99+" : cartCount}
+                        </span>
+                      )}
                     </>
                   )}
                 </NavLink>

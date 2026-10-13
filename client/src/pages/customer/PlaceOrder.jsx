@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
+import { dispatchCartUpdate } from "../../hooks/useCartCount";
 
 export default function PlaceOrder() {
   const navigate = useNavigate();
@@ -163,6 +164,7 @@ export default function PlaceOrder() {
 
       // Clear Cart
       localStorage.removeItem("medifind_cart");
+      dispatchCartUpdate();
 
       // Redirect to Order Tracking
       navigate(`/customer/tracking?order=${orderId}`);

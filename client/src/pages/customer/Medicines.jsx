@@ -14,7 +14,7 @@ import {
   AlertCircle,
   Tag,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../services/api";
 
 const CATEGORIES = [
@@ -37,12 +37,19 @@ const POPULAR_SEARCHES = [
 
 export default function Medicines() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryParam = searchParams.get("search") || "";
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(queryParam);
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [medicines, setMedicines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Sync state if URL search param updates from Header
+  useEffect(() => {
+    setSearch(queryParam);
+  }, [queryParam]);
 
   const fetchMedicines = async (query = "", category = selectedCategory) => {
     try {
@@ -82,6 +89,11 @@ export default function Medicines() {
 
   const handleClearSearch = () => {
     setSearch("");
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("search");
+      return next;
+    });
     fetchMedicines("", selectedCategory);
   };
 
