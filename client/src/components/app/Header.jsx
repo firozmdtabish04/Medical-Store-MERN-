@@ -18,6 +18,8 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { useCartCount } from "../../hooks/useCartCount";
 import api from "../../services/api";
+import { TableChart } from "@mui/icons-material";
+import GlobalDataGridModal from "../common/GlobalDataGridModal";
 
 const CITIES = [
   "Bhubaneswar",
@@ -75,6 +77,9 @@ function Header({ onMenuClick }) {
 
   // Profile Dropdown State
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+
+  // Global MUI DataGrid State
+  const [dataGridOpen, setDataGridOpen] = useState(false);
 
   // Refs for click outside
   const cityRef = useRef(null);
@@ -270,6 +275,17 @@ function Header({ onMenuClick }) {
               </div>
             )}
           </div>
+
+          {/* GLOBAL MUI DATAGRID EXPLORER BUTTON (Available from any page) */}
+          <button
+            type="button"
+            onClick={() => setDataGridOpen(true)}
+            className="hidden sm:flex items-center gap-1.5 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-green-300 hover:bg-green-50 hover:text-green-700 active:scale-95"
+            title="Open Live MUI DataGrid Monitor"
+          >
+            <TableChart sx={{ fontSize: 16 }} className="text-green-600" />
+            <span>DataGrid</span>
+          </button>
 
           {/* CART QUICK LINK (Live Cart Count Badge) */}
           {role === "CUSTOMER" && (
@@ -497,6 +513,12 @@ function Header({ onMenuClick }) {
           )}
         </form>
       </div>
+
+      {/* GLOBAL MUI DATAGRID MODAL (Accessible from every page) */}
+      <GlobalDataGridModal
+        open={dataGridOpen}
+        onClose={() => setDataGridOpen(false)}
+      />
     </header>
   );
 }
