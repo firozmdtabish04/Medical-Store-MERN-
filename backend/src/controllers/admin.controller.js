@@ -2,20 +2,8 @@ const Pharmacy = require("../models/Pharmacy");
 const User = require("../models/User");
 const Medicine = require("../models/Medicine");
 const Order = require("../models/Order");
-
-// In-memory / dynamic platform settings store
-let platformSettings = {
-  platformName: "MediFind Healthcare",
-  supportEmail: "support@medifind.com",
-  supportPhone: "+91 98765 43210",
-  freeDeliveryThreshold: 500,
-  standardDeliveryFee: 40,
-  taxPercentage: 5,
-  autoAssignDelivery: true,
-  allowCashOnDelivery: true,
-  allowOnlinePayments: true,
-  operationalStatus: "ACTIVE",
-};
+const Setting = require("../models/Setting");
+const { getPlatformSettings } = require("../services/setting.service");
 
 // ==========================================
 // GET ADMIN DASHBOARD STATS
@@ -312,17 +300,23 @@ const getAllOrders = async (req, res, next) => {
 
 const getDeliveryPartners = async (req, res, next) => {
   try {
+    const settings = await getPlatformSettings();
+    const feePerDelivery =
+      settings.deliveryPartnerPayout || settings.standardDeliveryFee || 40;
+
     const partners = await User.find({ role: "DELIVERY" })
       .select("-password")
       .sort({ createdAt: -1 });
 
-    // Aggregate delivery counts for partners
+    // Aggregate delivery counts and fee earnings for partners
     const partnersWithStats = await Promise.all(
       partners.map(async (partner) => {
         const [activeCount, completedCount] = await Promise.all([
           Order.countDocuments({
             deliveryPartner: partner._id,
-            orderStatus: { $in: ["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERY_ASSIGNED"] },
+            orderStatus: {
+              $in: ["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERY_ASSIGNED"],
+            },
           }),
           Order.countDocuments({
             deliveryPartner: partner._id,
@@ -334,6 +328,8 @@ const getDeliveryPartners = async (req, res, next) => {
           ...partner.toObject(),
           activeDeliveries: activeCount,
           completedDeliveries: completedCount,
+          feePerDelivery,
+          totalEarnings: completedCount * feePerDelivery,
         };
       }),
     );
@@ -341,6 +337,7 @@ const getDeliveryPartners = async (req, res, next) => {
     res.json({
       success: true,
       count: partnersWithStats.length,
+      feePerDelivery,
       deliveryPartners: partnersWithStats,
     });
   } catch (error) {
@@ -354,9 +351,10 @@ const getDeliveryPartners = async (req, res, next) => {
 
 const getSettings = async (req, res, next) => {
   try {
+    const settings = await getPlatformSettings();
     res.json({
       success: true,
-      settings: platformSettings,
+      settings,
     });
   } catch (error) {
     next(error);
@@ -365,15 +363,23 @@ const getSettings = async (req, res, next) => {
 
 const updateSettings = async (req, res, next) => {
   try {
-    platformSettings = {
-      ...platformSettings,
-      ...req.body,
-    };
+    const payload = { ...req.body };
+    if (
+      payload.standardDeliveryFee !== undefined &&
+      payload.deliveryPartnerPayout === undefined
+    ) {
+      payload.deliveryPartnerPayout = payload.standardDeliveryFee;
+    }
+
+    const settings = await Setting.findOneAndUpdate({}, payload, {
+      new: true,
+      upsert: true,
+    });
 
     res.json({
       success: true,
       message: "Platform settings updated successfully",
-      settings: platformSettings,
+      settings,
     });
   } catch (error) {
     next(error);

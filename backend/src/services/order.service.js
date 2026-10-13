@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const Pharmacy = require("../models/Pharmacy");
 const PharmacyMedicine = require("../models/PharmacyMedicine");
+const { getPlatformSettings } = require("./setting.service");
 
 const createOrder = async ({
   customerId,
@@ -103,7 +104,10 @@ const createOrder = async ({
       }
     }
 
-    const deliveryFee = subtotal >= 500 ? 0 : 40;
+    const settings = await getPlatformSettings();
+    const freeThreshold = Number(settings.freeDeliveryThreshold) || 500;
+    const standardFee = Number(settings.standardDeliveryFee) || 40;
+    const deliveryFee = subtotal >= freeThreshold ? 0 : standardFee;
     const totalAmount = subtotal + deliveryFee;
 
     const orderPayload = {

@@ -4,15 +4,24 @@ import api from "../../services/api";
 
 export default function DeliveryHistory() {
   const [deliveries, setDeliveries] = useState([]);
+  const [feeRate, setFeeRate] = useState(40);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadHistory = async () => {
+    const loadHistoryAndStats = async () => {
       try {
         setLoading(true);
-        const res = await api.get("/delivery/my-deliveries");
-        const all = res.data?.orders || [];
+        const [ordersRes, statsRes] = await Promise.all([
+          api.get("/delivery/my-deliveries"),
+          api.get("/delivery/stats"),
+        ]);
+        const all = ordersRes.data?.orders || [];
         setDeliveries(all.filter((o) => o.orderStatus === "DELIVERED"));
+        if (statsRes.data?.stats?.earningsPerDelivery) {
+          setFeeRate(statsRes.data.stats.earningsPerDelivery);
+        } else if (statsRes.data?.stats?.standardDeliveryFee) {
+          setFeeRate(statsRes.data.stats.standardDeliveryFee);
+        }
       } catch (err) {
         console.error("Failed to load history:", err);
       } finally {
@@ -20,10 +29,14 @@ export default function DeliveryHistory() {
       }
     };
 
-    loadHistory();
+    loadHistoryAndStats();
   }, []);
 
-  const totalEarnings = deliveries.length * 60;
+  // Total earnings calculated directly from Admin delivery fee / order delivery fee
+  const totalEarnings = deliveries.reduce(
+    (sum, d) => sum + (d.deliveryFee > 0 ? d.deliveryFee : feeRate),
+    0,
+  );
 
   return (
     <div className="space-y-6">
@@ -58,7 +71,7 @@ export default function DeliveryHistory() {
             ₹{totalEarnings.toFixed(2)}
           </p>
           <span className="mt-1 block text-xs text-gray-500">
-            Calculated at ₹60 flat incentive per delivery
+            Calculated at ₹{feeRate} flat payout per delivery (configured by Admin)
           </span>
         </div>
       </div>
@@ -82,32 +95,35 @@ export default function DeliveryHistory() {
                   <th className="rounded-l-xl px-4 py-3">Order</th>
                   <th className="px-4 py-3">Pharmacy</th>
                   <th className="px-4 py-3">Destination</th>
-                  <th className="px-4 py-3">Payout</th>
+                  <th className="px-4 py-3">Delivery Payout</th>
                   <th className="rounded-r-xl px-4 py-3">Delivered Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {deliveries.map((del) => (
-                  <tr key={del._id} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-3 font-semibold text-gray-900">
-                      #{del._id.slice(-6).toUpperCase()}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {del.pharmacy?.storeName}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {del.deliveryAddress?.street}, {del.deliveryAddress?.city}
-                    </td>
-                    <td className="px-4 py-3 font-bold text-green-700">
-                      +₹60.00
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-400">
-                      {del.deliveredAt
-                        ? new Date(del.deliveredAt).toLocaleString()
-                        : new Date(del.updatedAt).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
+                {deliveries.map((del) => {
+                  const payout = del.deliveryFee > 0 ? del.deliveryFee : feeRate;
+                  return (
+                    <tr key={del._id} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3 font-semibold text-gray-900">
+                        #{del._id.slice(-6).toUpperCase()}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {del.pharmacy?.storeName}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {del.deliveryAddress?.street}, {del.deliveryAddress?.city}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-green-700">
+                        +₹{Number(payout).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-400">
+                        {del.deliveredAt
+                          ? new Date(del.deliveredAt).toLocaleString()
+                          : new Date(del.updatedAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

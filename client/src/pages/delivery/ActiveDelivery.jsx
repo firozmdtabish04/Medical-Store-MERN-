@@ -127,9 +127,14 @@ export default function ActiveDelivery() {
       {/* Top Banner */}
       <div className="flex items-center justify-between">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-green-700 bg-green-50 px-3 py-1 rounded-full border border-green-200">
-            Active Task • #{order._id.slice(-6).toUpperCase()}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-green-700 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+              Active Task • #{order._id.slice(-6).toUpperCase()}
+            </span>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300">
+              Payout: ₹{order.deliveryFee !== undefined && order.deliveryFee !== null ? (order.deliveryFee > 0 ? order.deliveryFee : 40) : 40}
+            </span>
+          </div>
           <h1 className="mt-2 text-2xl font-extrabold text-gray-900 sm:text-3xl">
             Live Delivery Cockpit
           </h1>

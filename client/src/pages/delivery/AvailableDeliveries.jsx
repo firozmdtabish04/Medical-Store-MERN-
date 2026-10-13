@@ -15,6 +15,7 @@ import api from "../../services/api";
 export default function AvailableDeliveries() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
+  const [standardFee, setStandardFee] = useState(40);
   const [loading, setLoading] = useState(true);
   const [acceptingId, setAcceptingId] = useState(null);
   const [error, setError] = useState("");
@@ -25,6 +26,9 @@ export default function AvailableDeliveries() {
       setError("");
       const res = await api.get("/delivery/available");
       setOrders(res.data?.orders || []);
+      if (res.data?.standardDeliveryFee) {
+        setStandardFee(res.data.standardDeliveryFee);
+      }
     } catch (err) {
       console.error("Failed to load deliveries:", err);
       setError("Unable to retrieve available delivery tasks.");
@@ -105,8 +109,8 @@ export default function AvailableDeliveries() {
                   <span className="text-xs font-bold text-gray-400">
                     ORDER #{order._id.slice(-6).toUpperCase()}
                   </span>
-                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
-                    PAYOUT: ₹60.00
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                    PAYOUT: ₹{order.deliveryFee > 0 ? order.deliveryFee : standardFee}
                   </span>
                 </div>
 
@@ -151,11 +155,16 @@ export default function AvailableDeliveries() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex items-center justify-between border-t border-gray-50 pt-3 text-xs text-gray-500">
-                  <span>{order.items?.length || 1} medicine package(s)</span>
-                  <span className="font-bold text-gray-800">
-                    Order Value: ₹{order.totalAmount}
-                  </span>
+                <div className="mt-4 flex items-center justify-between border-t border-gray-50 pt-3 text-xs">
+                  <span className="text-gray-500">{order.items?.length || 1} medicine package(s)</span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700">
+                      Earn: ₹{order.deliveryFee > 0 ? order.deliveryFee : standardFee}
+                    </span>
+                    <span className="font-bold text-gray-800">
+                      Value: ₹{order.totalAmount}
+                    </span>
+                  </div>
                 </div>
               </div>
 

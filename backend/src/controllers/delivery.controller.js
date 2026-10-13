@@ -2,6 +2,7 @@ const Order = require("../models/Order");
 const User = require("../models/User");
 const { assignDeliveryPartner } = require("../services/delivery.service");
 const { emitToOrder } = require("../sockets/socket");
+const { getPlatformSettings } = require("../services/setting.service");
 
 // ==========================================
 // AVAILABLE ORDERS
@@ -9,6 +10,12 @@ const { emitToOrder } = require("../sockets/socket");
 
 const getAvailableDeliveries = async (req, res, next) => {
   try {
+    const settings = await getPlatformSettings();
+    const standardDeliveryFee =
+      Number(settings.deliveryPartnerPayout) ||
+      Number(settings.standardDeliveryFee) ||
+      40;
+
     const orders = await Order.find({
       orderStatus: "READY_FOR_PICKUP",
       deliveryPartner: null,
@@ -21,6 +28,7 @@ const getAvailableDeliveries = async (req, res, next) => {
     res.json({
       success: true,
       count: orders.length,
+      standardDeliveryFee,
       orders,
     });
   } catch (error) {
@@ -168,6 +176,12 @@ const getMyDeliveries = async (req, res, next) => {
 
 const getDeliveryStats = async (req, res, next) => {
   try {
+    const settings = await getPlatformSettings();
+    const earningsPerDelivery =
+      Number(settings.deliveryPartnerPayout) ||
+      Number(settings.standardDeliveryFee) ||
+      40;
+
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
@@ -176,6 +190,8 @@ const getDeliveryStats = async (req, res, next) => {
       activeOrder,
       completedTodayCount,
       allCompletedOrders,
+      todayDeliveredOrders,
+      allDeliveredOrders,
     ] = await Promise.all([
       Order.countDocuments({
         orderStatus: "READY_FOR_PICKUP",
@@ -196,12 +212,28 @@ const getDeliveryStats = async (req, res, next) => {
         deliveryPartner: req.user._id,
         orderStatus: "DELIVERED",
       }),
+      Order.find({
+        deliveryPartner: req.user._id,
+        orderStatus: "DELIVERED",
+        deliveredAt: { $gte: startOfToday },
+      }).select("deliveryFee"),
+      Order.find({
+        deliveryPartner: req.user._id,
+        orderStatus: "DELIVERED",
+      }).select("deliveryFee"),
     ]);
 
-    // ₹60 earning per completed delivery
-    const earningsPerDelivery = 60;
-    const todayEarnings = completedTodayCount * earningsPerDelivery;
-    const totalEarnings = allCompletedOrders * earningsPerDelivery;
+    // Calculate actual earnings based on deliveryFee tied to Admin platform settings
+    const todayEarnings = todayDeliveredOrders.reduce(
+      (sum, o) =>
+        sum + (o.deliveryFee > 0 ? o.deliveryFee : earningsPerDelivery),
+      0,
+    );
+    const totalEarnings = allDeliveredOrders.reduce(
+      (sum, o) =>
+        sum + (o.deliveryFee > 0 ? o.deliveryFee : earningsPerDelivery),
+      0,
+    );
 
     res.json({
       success: true,
@@ -212,6 +244,8 @@ const getDeliveryStats = async (req, res, next) => {
         totalCompleted: allCompletedOrders,
         todayEarnings,
         totalEarnings,
+        earningsPerDelivery,
+        standardDeliveryFee: settings.standardDeliveryFee || 40,
       },
       activeOrderId: activeOrder ? activeOrder._id : null,
     });

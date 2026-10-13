@@ -64,6 +64,7 @@ function DeliveryDashboard() {
     {
       title: "Today's Earnings",
       value: `₹${statsData.todayEarnings}`,
+      subtitle: `Rate: ₹${statsData.earningsPerDelivery || 40}/delivery`,
       icon: IndianRupee,
       bg: "bg-orange-50",
       color: "text-orange-600",
@@ -164,6 +165,12 @@ function DeliveryDashboard() {
                   <p className="mt-2 text-2xl font-extrabold text-gray-900">
                     {stat.value}
                   </p>
+
+                  {stat.subtitle && (
+                    <p className="mt-1 text-[11px] font-semibold text-gray-400">
+                      {stat.subtitle}
+                    </p>
+                  )}
                 </div>
 
                 <div
