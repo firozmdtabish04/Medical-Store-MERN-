@@ -107,7 +107,7 @@ function App() {
         "%cDeveloped & Designed by Tabish Firoz",
         "color: #3b82f6; font-size: 14px; font-weight: bold;",
       );
-    }, 5500);
+    }, 3500);
     return () => clearTimeout(timer);
   }, []);
 
