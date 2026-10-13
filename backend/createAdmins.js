@@ -10,7 +10,7 @@ const setupAdmin = async () => {
 
     console.log("MongoDB connected");
 
-    const email = "mdtabishfiroz04@gmail.com";
+    const email = "mdtabishfiroz31@gmail.com";
     const password = "Akhil@04";
 
     const user = await User.findOne({ email });

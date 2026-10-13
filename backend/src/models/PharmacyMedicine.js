@@ -55,8 +55,8 @@ const pharmacyMedicineSchema = new mongoose.Schema(
   },
 );
 
-// One medicine can only have one inventory entry
-// for a particular pharmacy.
+// A medicine can have only one inventory entry
+// per pharmacy.
 pharmacyMedicineSchema.index(
   {
     pharmacy: 1,
@@ -67,8 +67,8 @@ pharmacyMedicineSchema.index(
   },
 );
 
-// Automatically calculate stock status
-pharmacyMedicineSchema.pre("save", function (next) {
+// Automatically calculate inventory status before saving.
+pharmacyMedicineSchema.pre("save", function () {
   if (this.stock === 0) {
     this.status = "OUT_OF_STOCK";
   } else if (this.stock <= this.lowStockThreshold) {
@@ -76,8 +76,6 @@ pharmacyMedicineSchema.pre("save", function (next) {
   } else {
     this.status = "AVAILABLE";
   }
-
-  next();
 });
 
 module.exports = mongoose.model("PharmacyMedicine", pharmacyMedicineSchema);
