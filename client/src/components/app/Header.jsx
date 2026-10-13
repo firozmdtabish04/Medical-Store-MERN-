@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCartCount } from "../../hooks/useCartCount";
+import api from "../../services/api";
 
 const CITIES = [
   "Bhubaneswar",
@@ -25,30 +26,6 @@ const CITIES = [
   "Rourkela",
   "Berhampur",
   "Sambalpur",
-];
-
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: 1,
-    title: "Prescription Network Active",
-    message: "Verified pharmacies around you are online and ready to dispense.",
-    time: "Just now",
-    read: false,
-  },
-  {
-    id: 2,
-    title: "Fast Medicine Delivery",
-    message: "Order by 8 PM for lightning fast doorstep courier delivery.",
-    time: "1 hour ago",
-    read: false,
-  },
-  {
-    id: 3,
-    title: "Welcome to MediFind",
-    message: "Find genuine medicines, check store stocks, and track orders.",
-    time: "Today",
-    read: true,
-  },
 ];
 
 function Header({ onMenuClick }) {
@@ -75,10 +52,26 @@ function Header({ onMenuClick }) {
   });
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
 
-  // Notifications State
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
+  // Persistent Database Notifications State
+  const [notifications, setNotifications] = useState([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const fetchNotifications = async () => {
+    if (!localStorage.getItem("token")) return;
+    try {
+      const res = await api.get("/notifications");
+      if (res.data?.notifications) {
+        setNotifications(res.data.notifications);
+      }
+    } catch (err) {
+      console.warn("Could not fetch notifications from database:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [user]);
 
   // Profile Dropdown State
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -128,8 +121,24 @@ function Header({ onMenuClick }) {
     setCityDropdownOpen(false);
   };
 
-  const handleMarkAllNotificationsRead = () => {
+  const handleMarkAllNotificationsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await api.put("/notifications/mark-all-read");
+    } catch (err) {
+      console.error("Failed to mark all as read in DB:", err);
+    }
+  };
+
+  const handleMarkNotificationRead = async (id) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n._id === id || n.id === id ? { ...n, read: true } : n)),
+    );
+    try {
+      await api.put(`/notifications/${id}/read`);
+    } catch (err) {
+      console.error("Failed to mark notification read in DB:", err);
+    }
   };
 
   const getProfileLink = () => {
@@ -320,26 +329,48 @@ function Header({ onMenuClick }) {
                 </div>
 
                 <div className="mt-2 divide-y divide-gray-50 max-h-72 overflow-y-auto">
-                  {notifications.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`p-2.5 rounded-xl transition ${
-                        item.read ? "bg-white" : "bg-green-50/50"
-                      } hover:bg-gray-50`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-xs font-bold text-gray-900">
-                          {item.title}
-                        </p>
-                        <span className="text-[10px] text-gray-400 whitespace-nowrap">
-                          {item.time}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-gray-600 leading-relaxed">
-                        {item.message}
-                      </p>
+                  {notifications.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-gray-400">
+                      No notifications right now
                     </div>
-                  ))}
+                  ) : (
+                    notifications.map((item) => {
+                      const id = item._id || item.id;
+                      const timeStr = item.createdAt
+                        ? new Date(item.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : item.time || "Recent";
+
+                      return (
+                        <div
+                          key={id}
+                          onClick={() => handleMarkNotificationRead(id)}
+                          className={`p-2.5 rounded-xl transition cursor-pointer ${
+                            item.read ? "bg-white" : "bg-green-50/60"
+                          } hover:bg-gray-50`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {!item.read && (
+                                <span className="h-1.5 w-1.5 rounded-full bg-green-600 shrink-0" />
+                              )}
+                              <p className="text-xs font-bold text-gray-900 truncate">
+                                {item.title}
+                              </p>
+                            </div>
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                              {timeStr}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-600 leading-relaxed">
+                            {item.message}
+                          </p>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )}

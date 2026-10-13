@@ -1,34 +1,41 @@
+const Notification = require("../models/Notification");
+const { getIO } = require("../sockets/socket");
+
 const sendNotification = async ({
   userId,
   title,
   message,
-  type,
+  type = "INFO",
   data = {},
 }) => {
-  console.log("=================================");
-  console.log("NOTIFICATION");
-  console.log("User:", userId);
-  console.log("Title:", title);
-  console.log("Message:", message);
-  console.log("Type:", type);
-  console.log("Data:", data);
-  console.log("=================================");
+  try {
+    const notification = await Notification.create({
+      user: userId,
+      title,
+      message,
+      type,
+      data,
+      read: false,
+    });
 
-  return {
-    success: true,
-    userId,
-    title,
-    message,
-    type,
-    data,
-  };
+    // Real-time emit if Socket.IO is configured
+    const io = getIO();
+    if (io) {
+      io.to(`user:${userId}`).emit("notification-received", notification);
+    }
+
+    return notification;
+  } catch (error) {
+    console.error("Failed to persist notification:", error);
+    return null;
+  }
 };
 
 const notifyOrderPlaced = async (order) => {
   return sendNotification({
     userId: order.customer,
-    title: "Order Placed",
-    message: "Your medicine order has been placed.",
+    title: "Order Placed Successfully",
+    message: `Your medicine order #${order._id.toString().slice(-6)} has been placed.`,
     type: "ORDER_PLACED",
     data: {
       orderId: order._id,
@@ -39,8 +46,8 @@ const notifyOrderPlaced = async (order) => {
 const notifyOrderAccepted = async (order) => {
   return sendNotification({
     userId: order.customer,
-    title: "Order Accepted",
-    message: "The pharmacy has accepted your order.",
+    title: "Order Accepted by Pharmacy",
+    message: "The pharmacy has accepted and is packing your prescription.",
     type: "ORDER_ACCEPTED",
     data: {
       orderId: order._id,
@@ -52,7 +59,7 @@ const notifyDeliveryAssigned = async (order) => {
   return sendNotification({
     userId: order.customer,
     title: "Delivery Partner Assigned",
-    message: "A delivery partner has been assigned to your order.",
+    message: "A courier partner has picked up your medicine parcel.",
     type: "DELIVERY_ASSIGNED",
     data: {
       orderId: order._id,
@@ -66,7 +73,7 @@ const notifyDelivered = async (order) => {
   return sendNotification({
     userId: order.customer,
     title: "Order Delivered",
-    message: "Your medicine order has been delivered.",
+    message: "Your medicine parcel has been successfully delivered.",
     type: "ORDER_DELIVERED",
     data: {
       orderId: order._id,

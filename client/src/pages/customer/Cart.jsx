@@ -9,53 +9,113 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { dispatchCartUpdate } from "../../hooks/useCartCount";
+import api from "../../services/api";
+
+const CART_STORAGE_KEY = "medifind_cart";
 
 export default function Cart() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const [cart, setCart] = useState([]);
+  const [cartLoaded, setCartLoaded] = useState(false);
 
-  // Load cart from localStorage
+  // Load the saved cart before allowing any writes or syncs.
   useEffect(() => {
-    const savedCart = localStorage.getItem("medifind_cart");
+    let cancelled = false;
 
-    if (savedCart) {
-      setCart(JSON.parse(savedCart));
-    }
+    const loadCart = async () => {
+      let initialCart = [];
+
+      try {
+        const savedCart = localStorage.getItem(CART_STORAGE_KEY);
+
+        if (savedCart) {
+          try {
+            const parsed = JSON.parse(savedCart);
+            if (Array.isArray(parsed)) {
+              initialCart = parsed;
+            }
+          } catch {
+            localStorage.removeItem(CART_STORAGE_KEY);
+          }
+        }
+
+        // Prefer the database cart when it contains items.
+        if (localStorage.getItem("token")) {
+          try {
+            const response = await api.get("/cart");
+            const databaseItems = response.data?.items;
+
+            if (Array.isArray(databaseItems) && databaseItems.length > 0) {
+              initialCart = databaseItems;
+            }
+          } catch (error) {
+            console.warn(
+              "Could not load cart from database; using local cart:",
+              error.message,
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Could not load saved cart:", error);
+      } finally {
+        if (!cancelled) {
+          setCart(initialCart);
+          localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(initialCart));
+          dispatchCartUpdate();
+          setCartLoaded(true);
+        }
+      }
+    };
+
+    loadCart();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Add medicine coming from Medicines.jsx
+  // Add a medicine passed from the medicines page.
   useEffect(() => {
-    const medicine = location.state?.medicine;
+    if (!cartLoaded) return;
 
+    const medicine = location.state?.medicine;
     if (!medicine) return;
 
-    setCart((previousCart) => {
-      const invId = medicine.inventoryId || medicine._id || medicine.id;
-      const calculatedEffectivePrice =
-        medicine.effectivePrice ??
-        Number(
-          (
-            medicine.price -
-            (medicine.price * (medicine.discount || 0)) / 100
-          ).toFixed(2),
-        );
-      const pharmId =
-        medicine.pharmacyId || medicine.pharmacy?._id || medicine.pharmacy;
+    const inventoryId = medicine.inventoryId || medicine._id || medicine.id;
 
+    if (!inventoryId) {
+      console.error("Cannot add medicine without an inventory ID.");
+      navigate(location.pathname, { replace: true, state: null });
+      return;
+    }
+
+    const pharmacyId =
+      medicine.pharmacyId || medicine.pharmacy?._id || medicine.pharmacy;
+
+    const effectivePrice =
+      medicine.effectivePrice ??
+      Number(
+        (
+          Number(medicine.price || 0) *
+          (1 - Number(medicine.discount || 0) / 100)
+        ).toFixed(2),
+      );
+
+    setCart((previousCart) => {
       const existingItem = previousCart.find(
-        (item) => item.inventoryId === invId,
+        (item) => String(item.inventoryId) === String(inventoryId),
       );
 
       let updatedCart;
 
       if (existingItem) {
         updatedCart = previousCart.map((item) =>
-          item.inventoryId === invId
+          String(item.inventoryId) === String(inventoryId)
             ? {
                 ...item,
-                quantity: Math.min(item.quantity + 1, medicine.stock || 99),
+                quantity: Math.min(item.quantity + 1, item.stock || 99),
               }
             : item,
         );
@@ -63,51 +123,53 @@ export default function Cart() {
         updatedCart = [
           ...previousCart,
           {
-            inventoryId: invId,
-            pharmacyId: pharmId,
-            storeName: medicine.storeName || "Apollo Care Pharmacy",
+            inventoryId,
+            pharmacyId,
+            storeName: medicine.storeName || "Pharmacy",
             medicine: medicine.medicine || {
               name: medicine.name || "Medicine",
+              genericName: medicine.genericName || "",
             },
-            price: medicine.price,
-            discount: medicine.discount || 0,
-            effectivePrice: calculatedEffectivePrice,
-            stock: medicine.stock || 100,
+            price: Number(medicine.price || 0),
+            discount: Number(medicine.discount || 0),
+            effectivePrice: Number(effectivePrice),
+            stock: Number(medicine.stock || 100),
             quantity: 1,
           },
         ];
       }
 
-      localStorage.setItem("medifind_cart", JSON.stringify(updatedCart));
-
       return updatedCart;
     });
 
-    // Clear navigation state
-    window.history.replaceState({}, document.title);
-  }, [location.state]);
+    // Prevent adding the same medicine again on a refresh.
+    navigate(location.pathname, { replace: true, state: null });
+  }, [cartLoaded, location.state, location.pathname, navigate]);
 
-  // Save cart whenever it changes
+  // Persist only after initial loading has completed.
   useEffect(() => {
-    localStorage.setItem("medifind_cart", JSON.stringify(cart));
+    if (!cartLoaded) return;
+
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
     dispatchCartUpdate();
-  }, [cart]);
+
+    if (localStorage.getItem("token")) {
+      api.post("/cart/sync", { items: cart }).catch((error) => {
+        console.warn("Could not sync cart to database:", error.message);
+      });
+    }
+  }, [cart, cartLoaded]);
 
   const increaseQuantity = (inventoryId) => {
     setCart((previousCart) =>
       previousCart.map((item) => {
-        if (item.inventoryId !== inventoryId) {
+        if (String(item.inventoryId) !== String(inventoryId)) {
           return item;
         }
 
-        if (item.quantity >= item.stock) {
-          return item;
-        }
+        if (item.quantity >= item.stock) return item;
 
-        return {
-          ...item,
-          quantity: item.quantity + 1,
-        };
+        return { ...item, quantity: item.quantity + 1 };
       }),
     );
   };
@@ -116,11 +178,8 @@ export default function Cart() {
     setCart((previousCart) =>
       previousCart
         .map((item) =>
-          item.inventoryId === inventoryId
-            ? {
-                ...item,
-                quantity: item.quantity - 1,
-              }
+          String(item.inventoryId) === String(inventoryId)
+            ? { ...item, quantity: item.quantity - 1 }
             : item,
         )
         .filter((item) => item.quantity > 0),
@@ -129,31 +188,40 @@ export default function Cart() {
 
   const removeItem = (inventoryId) => {
     setCart((previousCart) =>
-      previousCart.filter((item) => item.inventoryId !== inventoryId),
+      previousCart.filter(
+        (item) => String(item.inventoryId) !== String(inventoryId),
+      ),
     );
   };
 
   const clearCart = () => {
     setCart([]);
-    localStorage.removeItem("medifind_cart");
   };
 
   const subtotal = cart.reduce(
-    (total, item) => total + item.effectivePrice * item.quantity,
+    (sum, item) =>
+      sum +
+      Number(item.effectivePrice ?? item.price ?? 0) *
+        Number(item.quantity || 0),
     0,
   );
 
-  const deliveryFee = subtotal >= 500 ? 0 : 40;
-
+  const deliveryFee = subtotal === 0 || subtotal >= 500 ? 0 : 40;
   const total = subtotal + deliveryFee;
+
+  if (!cartLoaded) {
+    return (
+      <div className="min-h-[60vh] justify-center bg-gray-50 flex items-center">
+        <p className="text-sm text-gray-500">Loading your cart...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 min-h-screen bg-gray-50 md:p-6">
-      {/* Header */}
       <div className="mb-6 justify-between flex items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Shopping Cart</h1>
-
           <p className="mt-1 text-sm text-gray-500">
             Review your medicines before placing the order.
           </p>
@@ -169,7 +237,6 @@ export default function Cart() {
         )}
       </div>
 
-      {/* Empty Cart */}
       {cart.length === 0 ? (
         <div className="min-h-[60vh] justify-center flex items-center">
           <div className="p-10 w-full max-w-md rounded-2xl border border-gray-200 bg-white text-center shadow-sm">
@@ -180,7 +247,6 @@ export default function Cart() {
             <h2 className="text-xl font-bold text-gray-900">
               Your cart is empty
             </h2>
-
             <p className="mt-2 text-sm text-gray-500">
               Find a medicine and add it to your cart.
             </p>
@@ -195,95 +261,95 @@ export default function Cart() {
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Cart Items */}
           <div className="space-y-4 lg:col-span-2">
-            {cart.map((item) => (
-              <div
-                key={item.inventoryId}
-                className="p-5 rounded-2xl border border-gray-200 bg-white shadow-sm"
-              >
-                <div className="gap-4 flex">
-                  {/* Medicine Icon */}
-                  <div className="h-16 w-16 justify-center rounded-xl bg-green-50 text-green-600 flex shrink-0 items-center">
-                    <ShoppingCart size={25} />
-                  </div>
+            {cart.map((item) => {
+              const inventoryId = item.inventoryId;
+              const price = Number(item.effectivePrice ?? item.price ?? 0);
 
-                  {/* Details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="gap-4 justify-between flex">
-                      <div>
-                        <h3 className="font-bold text-gray-900">
-                          {item.medicine?.name || "Medicine"}
-                        </h3>
+              return (
+                <div
+                  key={inventoryId}
+                  className="p-5 rounded-2xl border border-gray-200 bg-white shadow-sm"
+                >
+                  <div className="gap-4 flex">
+                    <div className="h-16 w-16 justify-center rounded-xl bg-green-50 text-green-600 flex shrink-0 items-center">
+                      <ShoppingCart size={25} />
+                    </div>
 
-                        {item.medicine?.genericName && (
-                          <p className="mt-1 text-xs text-gray-500">
-                            {item.medicine.genericName}
-                          </p>
-                        )}
+                    <div className="flex-1 min-w-0">
+                      <div className="gap-4 justify-between flex">
+                        <div>
+                          <h3 className="font-bold text-gray-900">
+                            {item.medicine?.name || "Medicine"}
+                          </h3>
+
+                          {item.medicine?.genericName && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              {item.medicine.genericName}
+                            </p>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => removeItem(inventoryId)}
+                          aria-label="Remove medicine"
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 size={18} />
+                        </button>
                       </div>
 
-                      <button
-                        onClick={() => removeItem(item.inventoryId)}
-                        className="text-gray-400 hover:text-red-500"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
+                      <div className="mt-3 gap-2 text-sm text-gray-500 flex items-center">
+                        <MapPin size={15} />
+                        <span>{item.storeName || "Pharmacy"}</span>
+                      </div>
 
-                    {/* Pharmacy */}
-                    <div className="mt-3 gap-2 text-sm text-gray-500 flex items-center">
-                      <MapPin size={15} />
-
-                      <span>{item.storeName || "Pharmacy"}</span>
-                    </div>
-
-                    {/* Price */}
-                    <div className="mt-4 justify-between flex items-center">
-                      <div>
-                        <span className="text-lg font-bold text-gray-900">
-                          ₹{item.effectivePrice}
-                        </span>
-
-                        {item.discount > 0 && (
-                          <span className="text-xs font-semibold text-green-600 ml-2">
-                            {item.discount}% OFF
+                      <div className="mt-4 gap-3 justify-between flex items-center">
+                        <div>
+                          <span className="text-lg font-bold text-gray-900">
+                            ₹{price.toFixed(2)}
                           </span>
-                        )}
+
+                          {item.discount > 0 && (
+                            <span className="text-xs font-semibold text-green-600 ml-2">
+                              {item.discount}% OFF
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="rounded-xl border border-gray-200 flex items-center">
+                          <button
+                            onClick={() => decreaseQuantity(inventoryId)}
+                            aria-label="Decrease quantity"
+                            className="h-9 w-9 justify-center text-gray-600 flex items-center hover:bg-gray-50"
+                          >
+                            <Minus size={16} />
+                          </button>
+
+                          <span className="w-10 text-center text-sm font-bold">
+                            {item.quantity}
+                          </span>
+
+                          <button
+                            onClick={() => increaseQuantity(inventoryId)}
+                            disabled={item.quantity >= item.stock}
+                            aria-label="Increase quantity"
+                            className="h-9 w-9 justify-center text-gray-600 flex items-center hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
                       </div>
 
-                      {/* Quantity */}
-                      <div className="rounded-xl border border-gray-200 flex items-center">
-                        <button
-                          onClick={() => decreaseQuantity(item.inventoryId)}
-                          className="h-9 w-9 justify-center text-gray-600 flex items-center hover:bg-gray-50"
-                        >
-                          <Minus size={16} />
-                        </button>
-
-                        <span className="w-10 text-center text-sm font-bold">
-                          {item.quantity}
-                        </span>
-
-                        <button
-                          onClick={() => increaseQuantity(item.inventoryId)}
-                          disabled={item.quantity >= item.stock}
-                          className="h-9 w-9 justify-center text-gray-600 flex items-center hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30"
-                        >
-                          <Plus size={16} />
-                        </button>
-                      </div>
+                      <p className="mt-2 text-xs text-gray-400">
+                        Available stock: {item.stock}
+                      </p>
                     </div>
-
-                    <p className="mt-2 text-xs text-gray-400">
-                      Available stock: {item.stock}
-                    </p>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
-            {/* Continue Shopping */}
             <button
               onClick={() => navigate("/customer/medicines")}
               className="gap-2 text-sm font-semibold text-green-600 flex items-center hover:text-green-700"
@@ -293,7 +359,6 @@ export default function Cart() {
             </button>
           </div>
 
-          {/* Summary */}
           <div>
             <div className="p-5 top-6 rounded-2xl border border-gray-200 bg-white shadow-sm sticky">
               <h2 className="text-lg font-bold text-gray-900">Order Summary</h2>
@@ -301,21 +366,21 @@ export default function Cart() {
               <div className="mt-5 text-sm space-y-3">
                 <div className="justify-between flex">
                   <span className="text-gray-500">Items</span>
-
                   <span className="font-medium">
-                    {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                    {cart.reduce(
+                      (sum, item) => sum + Number(item.quantity || 0),
+                      0,
+                    )}
                   </span>
                 </div>
 
                 <div className="justify-between flex">
                   <span className="text-gray-500">Subtotal</span>
-
                   <span className="font-medium">₹{subtotal.toFixed(2)}</span>
                 </div>
 
                 <div className="justify-between flex">
                   <span className="text-gray-500">Delivery Fee</span>
-
                   <span className="font-medium">
                     {deliveryFee === 0 ? "FREE" : `₹${deliveryFee}`}
                   </span>
@@ -324,7 +389,6 @@ export default function Cart() {
                 <div className="pt-4 border-t border-gray-100">
                   <div className="justify-between flex">
                     <span className="font-bold text-gray-900">Total</span>
-
                     <span className="text-xl font-bold text-green-600">
                       ₹{total.toFixed(2)}
                     </span>
@@ -332,16 +396,10 @@ export default function Cart() {
                 </div>
               </div>
 
-              {/* Checkout */}
               <button
                 onClick={() =>
                   navigate("/customer/place-order", {
-                    state: {
-                      cart,
-                      subtotal,
-                      deliveryFee,
-                      total,
-                    },
+                    state: { cart, subtotal, deliveryFee, total },
                   })
                 }
                 className="mt-6 px-4 py-3 w-full rounded-xl bg-green-600 font-semibold text-white transition hover:bg-green-700"

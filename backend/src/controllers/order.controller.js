@@ -2,6 +2,7 @@ const Order = require("../models/Order");
 const PharmacyMedicine = require("../models/PharmacyMedicine");
 const { createOrder } = require("../services/order.service");
 const { emitToOrder } = require("../sockets/socket");
+const { notifyOrderPlaced } = require("../services/notification.service");
 
 // CUSTOMER: PLACE ORDER
 const placeOrder = async (req, res, next) => {
@@ -50,6 +51,10 @@ const placeOrder = async (req, res, next) => {
       orderId: order._id,
       status: "PENDING",
     });
+
+    notifyOrderPlaced(order).catch((err) =>
+      console.error("Order notification error:", err),
+    );
 
     res.status(201).json({
       success: true,

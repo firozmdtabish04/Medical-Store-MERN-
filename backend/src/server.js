@@ -14,6 +14,7 @@ const orderRoutes = require("./routes/order.routes");
 const paymentRoutes = require("./routes/payment.routes");
 const deliveryRoutes = require("./routes/delivery.routes");
 const notificationRoutes = require("./routes/notification.routes");
+const cartRoutes = require("./routes/cart.routes");
 
 const errorHandler = require("./middleware/errorHandler");
 
@@ -41,6 +42,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/delivery", deliveryRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/cart", cartRoutes);
 
 // ----------------------------------
 // TEST API

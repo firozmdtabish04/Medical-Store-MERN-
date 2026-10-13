@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#0c343d" rx="90" />
+  
+  <!-- Magnifier Pin Body & Handle -->
+  <path d="M256 64c-88.36 0-160 71.64-160 160 0 52.4 24.8 98.9 63.4 128.6L256 432l96.6-79.4C391.2 322.9 416 276.4 416 224c0-88.36-71.64-160-160-160z" fill="#00b4a6" />
+  
+  <!-- Handle Extension -->
+  <path d="M336 344l88 88c8 8 8 20 0 28s-20 8-28 0l-88-88z" fill="#a4f0ea" />
+  
+  <!-- Inner Search Ring -->
+  <circle cx="256" cy="224" r="110" fill="#ffffff" />
+  <circle cx="256" cy="224" r="85" fill="#0c343d" />
+
+  <!-- Medical Cross -->
+  <path d="M236 154h40v42h42v40h-42v42h-40v-42h-42v-40h42z" fill="#a4f0ea" />
+</svg>

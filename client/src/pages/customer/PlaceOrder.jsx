@@ -162,9 +162,12 @@ export default function PlaceOrder() {
         }
       }
 
-      // Clear Cart
+      // Clear Cart (localStorage & MongoDB database)
       localStorage.removeItem("medifind_cart");
       dispatchCartUpdate();
+      if (localStorage.getItem("token")) {
+        api.delete("/cart").catch((e) => console.warn("Cart DB clear error:", e));
+      }
 
       // Redirect to Order Tracking
       navigate(`/customer/tracking?order=${orderId}`);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import api from "../services/api";
 
 export const CART_UPDATED_EVENT = "medifind_cart_updated";
 
@@ -26,6 +27,31 @@ export function useCartCount() {
 
   const syncCount = useCallback(() => {
     setCartCount(getStoredCartCount());
+  }, []);
+
+  // Fetch cart directly from MongoDB database on load/refresh if logged in
+  useEffect(() => {
+    const fetchDatabaseCart = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      try {
+        const res = await api.get("/cart");
+        if (res.data?.items) {
+          localStorage.setItem("medifind_cart", JSON.stringify(res.data.items));
+          const count = res.data.items.reduce(
+            (total, item) => total + (Number(item?.quantity) || 1),
+            0,
+          );
+          setCartCount(count);
+        }
+      } catch (err) {
+        // Fall back to local storage count if offline
+        console.warn("Could not load cart from database:", err);
+      }
+    };
+
+    fetchDatabaseCart();
   }, []);
 
   useEffect(() => {
