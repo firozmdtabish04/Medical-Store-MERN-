@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   Search,
@@ -13,35 +13,84 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import api from "../../services/api";
 
 function CustomerDashboard() {
   const { user } = useAuth();
+  const [orders, setOrders] = useState([]);
+  const [pharmaciesCount, setPharmaciesCount] = useState(0);
+  const [cartCount, setCartCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Load cart count
+    try {
+      const saved = localStorage.getItem("medifind_cart");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setCartCount(parsed.length || 0);
+      }
+    } catch (e) {}
+
+    // Load orders & pharmacies
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [ordersRes, pharmaciesRes] = await Promise.all([
+          api.get("/orders/my").catch(() => ({ data: { orders: [] } })),
+          api.get("/pharmacies").catch(() => ({ data: { pharmacies: [] } })),
+        ]);
+        setOrders(ordersRes.data?.orders || []);
+        setPharmaciesCount(pharmaciesRes.data?.count || 0);
+      } catch (err) {
+        console.error("Dashboard data load error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const activeOrders = orders.filter((o) =>
+    [
+      "PENDING",
+      "PHARMACY_ACCEPTED",
+      "PACKING",
+      "READY_FOR_PICKUP",
+      "DELIVERY_ASSIGNED",
+      "PICKED_UP",
+      "OUT_FOR_DELIVERY",
+    ].includes(o.orderStatus),
+  );
+
+  const latestActiveOrder = activeOrders[0] || orders[0] || null;
 
   const stats = [
     {
       title: "Total Orders",
-      value: "12",
+      value: orders.length.toString(),
       icon: Package,
       bg: "bg-blue-50",
       iconColor: "text-blue-600",
     },
     {
       title: "Active Orders",
-      value: "2",
+      value: activeOrders.length.toString(),
       icon: Truck,
       bg: "bg-green-50",
       iconColor: "text-green-600",
     },
     {
       title: "Cart Items",
-      value: "4",
+      value: cartCount.toString(),
       icon: ShoppingCart,
       bg: "bg-orange-50",
       iconColor: "text-orange-600",
     },
     {
       title: "Nearby Pharmacies",
-      value: "18",
+      value: pharmaciesCount.toString(),
       icon: Store,
       bg: "bg-purple-50",
       iconColor: "text-purple-600",
@@ -88,7 +137,7 @@ function CustomerDashboard() {
 
           <p className="mt-3 max-w-xl text-sm text-green-50 leading-6 sm:text-base">
             Find medicines, compare nearby pharmacies, place orders and track
-            your delivery from one place.
+            your delivery in real-time.
           </p>
 
           <Link
@@ -101,7 +150,6 @@ function CustomerDashboard() {
           </Link>
         </div>
 
-        {/* Decorative icon */}
         <div className="h-48 w-48 justify-center rounded-full bg-white/10 absolute -right-8 -top-8 hidden items-center sm:flex">
           <Pill size={90} className="text-white/20" />
         </div>
@@ -122,7 +170,6 @@ function CustomerDashboard() {
                   <p className="text-sm font-medium text-gray-500">
                     {stat.title}
                   </p>
-
                   <p className="mt-2 text-2xl font-extrabold text-gray-900">
                     {stat.value}
                   </p>
@@ -145,10 +192,7 @@ function CustomerDashboard() {
           <h2 className="text-xl font-extrabold text-gray-900">
             Quick Actions
           </h2>
-
-          <p className="mt-1 text-sm text-gray-500">
-            What would you like to do?
-          </p>
+          <p className="mt-1 text-sm text-gray-500">What would you like to do?</p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -183,16 +227,14 @@ function CustomerDashboard() {
         </div>
       </section>
 
-      {/* Active Order */}
+      {/* Active Order / Latest Order */}
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Order */}
         <div className="p-6 rounded-2xl border border-gray-100 bg-white shadow-sm lg:col-span-2">
           <div className="justify-between flex items-center">
             <div>
-              <h2 className="font-extrabold text-gray-900">Active Order</h2>
-
+              <h2 className="font-extrabold text-gray-900">Latest Order</h2>
               <p className="mt-1 text-sm text-gray-500">
-                Your latest medicine order
+                Your recent medicine delivery request
               </p>
             </div>
 
@@ -200,155 +242,68 @@ function CustomerDashboard() {
               to="/customer/orders"
               className="text-sm font-bold text-green-600 hover:text-green-700"
             >
-              View All
+              View All Orders
             </Link>
           </div>
 
-          <div className="mt-5 p-5 rounded-2xl border border-gray-100 bg-gray-50">
-            <div className="flex-col gap-4 flex sm:flex-row sm:items-center sm:justify-between">
-              <div className="gap-4 flex items-center">
-                <div className="h-12 w-12 justify-center rounded-xl bg-green-100 text-green-600 flex items-center">
-                  <Package size={22} />
+          {latestActiveOrder ? (
+            <div className="mt-5 p-5 rounded-2xl border border-gray-100 bg-gray-50">
+              <div className="flex-col gap-4 flex sm:flex-row sm:items-center sm:justify-between">
+                <div className="gap-4 flex items-center">
+                  <div className="h-12 w-12 justify-center rounded-xl bg-green-100 text-green-600 flex items-center">
+                    <Package size={22} />
+                  </div>
+
+                  <div>
+                    <p className="font-bold text-gray-900">
+                      Order #{latestActiveOrder._id.slice(-6).toUpperCase()}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {latestActiveOrder.items?.length || 1} medicine(s) • ₹
+                      {latestActiveOrder.totalAmount}
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <p className="font-bold text-gray-900">Order #MF-1024</p>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    3 medicines • ₹450
-                  </p>
-                </div>
+                <span className="px-3 py-1.5 w-fit rounded-full bg-green-100 text-xs font-bold text-green-700">
+                  {latestActiveOrder.orderStatus.replace(/_/g, " ")}
+                </span>
               </div>
 
-              <span className="px-3 py-1.5 w-fit rounded-full bg-green-100 text-xs font-bold text-green-700">
-                OUT FOR DELIVERY
-              </span>
+              <Link
+                to={`/customer/tracking?order=${latestActiveOrder._id}`}
+                className="mt-5 gap-2 py-3 justify-center rounded-xl bg-green-600 text-sm font-bold text-white flex items-center transition hover:bg-green-700"
+              >
+                <MapPin size={17} />
+                Live Tracking
+              </Link>
             </div>
-
-            {/* Progress */}
-            <div className="mt-6 flex items-center">
-              <div className="h-8 w-8 justify-center rounded-full bg-green-600 text-white flex items-center">
-                ✓
-              </div>
-
-              <div className="flex-1 h-1 bg-green-600" />
-
-              <div className="h-8 w-8 justify-center rounded-full bg-green-600 text-white flex items-center">
-                ✓
-              </div>
-
-              <div className="flex-1 h-1 bg-green-600" />
-
-              <div className="h-8 w-8 justify-center rounded-full bg-green-600 text-white flex items-center">
-                <Truck size={15} />
-              </div>
-
-              <div className="flex-1 h-1 bg-gray-200" />
-
-              <div className="h-8 w-8 rounded-full border-2 border-gray-200 bg-white" />
+          ) : (
+            <div className="mt-5 p-8 text-center text-sm text-gray-500 border border-dashed border-gray-200 rounded-2xl">
+              No orders placed yet. Find medicines and add them to your cart!
             </div>
-
-            <div className="mt-3 justify-between text-[10px] font-semibold text-gray-500 flex">
-              <span>Placed</span>
-              <span>Prepared</span>
-              <span>On the way</span>
-              <span>Delivered</span>
-            </div>
-
-            <Link
-              to="/customer/tracking"
-              className="mt-5 gap-2 py-3 justify-center rounded-xl bg-green-600 text-sm font-bold text-white flex items-center transition hover:bg-green-700"
-            >
-              <MapPin size={17} />
-              Track Order
-            </Link>
-          </div>
+          )}
         </div>
 
-        {/* Account */}
+        {/* Account Info */}
         <div className="p-6 rounded-2xl border border-gray-100 bg-white shadow-sm">
           <div className="h-12 w-12 justify-center rounded-xl bg-green-100 text-green-600 flex items-center">
             <ShieldCheck size={23} />
           </div>
 
-          <h2 className="mt-4 font-extrabold text-gray-900">Your Account</h2>
+          <h2 className="mt-4 font-extrabold text-gray-900">Verified Account</h2>
 
           <p className="mt-2 text-sm text-gray-500 leading-6">
-            Your MediFind account is ready to help you find and order medicines
-            from nearby pharmacies.
+            Your MediFind account is active. Order prescribed and OTC medicines
+            conveniently from nearby licensed pharmacies.
           </p>
 
-          <div className="mt-5 text-sm space-y-3">
-            <div className="pb-3 justify-between border-b border-gray-100 flex">
-              <span className="text-gray-500">Name</span>
-              <span className="font-semibold text-gray-900">
-                {user?.name || "-"}
-              </span>
-            </div>
-
-            <div className="pb-3 justify-between border-b border-gray-100 flex">
-              <span className="text-gray-500">Email</span>
-              <span className="max-w-[150px] font-semibold text-gray-900 truncate">
-                {user?.email || "-"}
-              </span>
-            </div>
-
-            <div className="justify-between flex">
-              <span className="text-gray-500">Role</span>
-              <span className="font-semibold text-green-600">
-                {user?.role || "CUSTOMER"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Recent Activity */}
-      <section className="p-6 rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="justify-between flex items-center">
-          <div>
-            <h2 className="font-extrabold text-gray-900">Recent Activity</h2>
-
-            <p className="mt-1 text-sm text-gray-500">
-              Your recent MediFind activity
-            </p>
-          </div>
-
-          <Clock3 size={20} className="text-gray-400" />
-        </div>
-
-        <div className="mt-5 space-y-4">
-          <div className="gap-4 p-4 rounded-xl bg-gray-50 flex items-center">
-            <div className="h-10 w-10 justify-center rounded-lg bg-green-100 text-green-600 flex items-center">
-              <Search size={18} />
-            </div>
-
-            <div className="flex-1">
-              <p className="text-sm font-bold text-gray-900">Medicine search</p>
-
-              <p className="text-xs text-gray-500">
-                You searched for medicines nearby
-              </p>
-            </div>
-
-            <span className="text-xs text-gray-400">Today</span>
-          </div>
-
-          <div className="gap-4 p-4 rounded-xl bg-gray-50 flex items-center">
-            <div className="h-10 w-10 justify-center rounded-lg bg-blue-100 text-blue-600 flex items-center">
-              <Package size={18} />
-            </div>
-
-            <div className="flex-1">
-              <p className="text-sm font-bold text-gray-900">Order placed</p>
-
-              <p className="text-xs text-gray-500">
-                Your medicine order was successfully placed
-              </p>
-            </div>
-
-            <span className="text-xs text-gray-400">Yesterday</span>
-          </div>
+          <Link
+            to="/customer/profile"
+            className="mt-6 text-sm font-bold text-green-600 hover:text-green-700 flex items-center gap-1"
+          >
+            Manage Profile <ArrowRight size={15} />
+          </Link>
         </div>
       </section>
     </div>

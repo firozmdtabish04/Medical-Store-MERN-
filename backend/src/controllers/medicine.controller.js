@@ -388,11 +388,93 @@ const removeMedicineFromPharmacy = async (req, res, next) => {
   }
 };
 
+// =====================================================
+// UPDATE MEDICINE MASTER (ADMIN)
+// =====================================================
+
+const updateMedicine = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      genericName,
+      brandName,
+      category,
+      dosage,
+      description,
+      prescriptionRequired,
+      image,
+      isActive,
+    } = req.body;
+
+    const medicine = await Medicine.findById(id);
+
+    if (!medicine) {
+      return res.status(404).json({
+        success: false,
+        message: "Medicine not found",
+      });
+    }
+
+    if (name !== undefined) medicine.name = name;
+    if (genericName !== undefined) medicine.genericName = genericName;
+    if (brandName !== undefined) medicine.brandName = brandName;
+    if (category !== undefined) medicine.category = category;
+    if (dosage !== undefined) medicine.dosage = dosage;
+    if (description !== undefined) medicine.description = description;
+    if (prescriptionRequired !== undefined)
+      medicine.prescriptionRequired = prescriptionRequired;
+    if (image !== undefined) medicine.image = image;
+    if (isActive !== undefined) medicine.isActive = isActive;
+
+    await medicine.save();
+
+    res.json({
+      success: true,
+      message: "Medicine updated successfully",
+      medicine,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =====================================================
+// DELETE MEDICINE MASTER (ADMIN)
+// =====================================================
+
+const deleteMedicine = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const medicine = await Medicine.findById(id);
+
+    if (!medicine) {
+      return res.status(404).json({
+        success: false,
+        message: "Medicine not found",
+      });
+    }
+
+    medicine.isActive = false;
+    await medicine.save();
+
+    res.json({
+      success: true,
+      message: "Medicine deleted successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createMedicine,
   getAllMedicines,
   getMedicineById,
   searchMedicines,
+  updateMedicine,
+  deleteMedicine,
   addMedicineToPharmacy,
   getMyInventory,
   updateInventory,

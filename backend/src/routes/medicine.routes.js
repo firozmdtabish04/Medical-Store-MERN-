@@ -5,6 +5,8 @@ const {
   getAllMedicines,
   getMedicineById,
   searchMedicines,
+  updateMedicine,
+  deleteMedicine,
   addMedicineToPharmacy,
   getMyInventory,
   updateInventory,
@@ -31,6 +33,12 @@ router.get("/search", searchMedicines);
 
 // Get medicine by ID
 router.get("/:id", getMedicineById);
+
+// Update medicine (ADMIN)
+router.put("/:id", protect, authorize("ADMIN"), updateMedicine);
+
+// Delete medicine (ADMIN)
+router.delete("/:id", protect, authorize("ADMIN"), deleteMedicine);
 
 // =====================================================
 // PHARMACY INVENTORY

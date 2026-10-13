@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   Users,
@@ -16,35 +16,71 @@ import {
   Settings,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import api from "../../services/api";
 
 function AdminDashboard() {
   const { user } = useAuth();
+  const [statsData, setStatsData] = useState({
+    totalUsers: 0,
+    totalPharmacies: 0,
+    totalMedicines: 0,
+    totalOrders: 0,
+    pendingPharmacies: 0,
+    totalRevenue: 0,
+  });
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [recentPharmacies, setRecentPharmacies] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        setLoading(true);
+        const res = await api.get("/admin/stats");
+        if (res.data?.stats) {
+          setStatsData(res.data.stats);
+        }
+        if (res.data?.recentOrders) {
+          setRecentOrders(res.data.recentOrders);
+        }
+        if (res.data?.recentPharmacies) {
+          setRecentPharmacies(res.data.recentPharmacies);
+        }
+      } catch (err) {
+        console.error("Failed to load admin stats:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadStats();
+  }, []);
 
   const stats = [
     {
       title: "Total Users",
-      value: "1,248",
+      value: statsData.totalUsers.toString(),
       icon: Users,
       bg: "bg-blue-50",
       color: "text-blue-600",
     },
     {
-      title: "Pharmacies",
-      value: "86",
+      title: "Verified Pharmacies",
+      value: statsData.totalPharmacies.toString(),
       icon: Store,
       bg: "bg-green-50",
       color: "text-green-600",
     },
     {
-      title: "Medicines",
-      value: "2,450",
+      title: "Medicine Catalog",
+      value: statsData.totalMedicines.toString(),
       icon: Pill,
       bg: "bg-purple-50",
       color: "text-purple-600",
     },
     {
-      title: "Total Orders",
-      value: "5,820",
+      title: "Platform Orders",
+      value: statsData.totalOrders.toString(),
       icon: Package,
       bg: "bg-orange-50",
       color: "text-orange-600",
@@ -54,37 +90,37 @@ function AdminDashboard() {
   const managementCards = [
     {
       title: "Manage Users",
-      description: "View and manage registered customers and platform users.",
+      description: "View and manage registered customers, pharmacists and riders.",
       icon: Users,
       path: "/admin/users",
     },
     {
       title: "Manage Pharmacies",
-      description: "Approve, reject and manage registered pharmacies.",
+      description: "Verify, approve, or reject partner pharmacy applications.",
       icon: Store,
       path: "/admin/pharmacies",
     },
     {
-      title: "Manage Medicines",
-      description: "Manage the platform medicine catalogue.",
+      title: "Medicine Master Catalog",
+      description: "Create and update platform medicines, dosages & categories.",
       icon: Pill,
       path: "/admin/medicines",
     },
     {
-      title: "Manage Orders",
-      description: "Monitor customer orders across the platform.",
+      title: "Monitor Orders",
+      description: "View and track medicine orders across all pharmacies.",
       icon: Package,
       path: "/admin/orders",
     },
     {
       title: "Delivery Partners",
-      description: "Manage delivery partners and their activity.",
+      description: "Manage rider fleet status and deliveries.",
       icon: Truck,
       path: "/admin/delivery-partners",
     },
     {
-      title: "Settings",
-      description: "Configure MediFind platform settings.",
+      title: "System Settings",
+      description: "Configure delivery thresholds, fees, and operational policies.",
       icon: Settings,
       path: "/admin/settings",
     },
@@ -97,9 +133,8 @@ function AdminDashboard() {
         <div className="z-10 relative">
           <div className="gap-2 flex items-center">
             <ShieldCheck size={18} className="text-green-400" />
-
             <span className="text-sm font-semibold text-green-400">
-              Administration Panel
+              Administration Control Center
             </span>
           </div>
 
@@ -108,8 +143,7 @@ function AdminDashboard() {
           </h1>
 
           <p className="mt-3 max-w-2xl text-sm text-gray-300 leading-6 sm:text-base">
-            Monitor and manage the MediFind healthcare platform from one
-            centralized administration dashboard.
+            Oversee MediFind healthcare operations, verify pharmacies, oversee inventory catalog and monitor logistics.
           </p>
         </div>
 
@@ -151,44 +185,45 @@ function AdminDashboard() {
         })}
       </section>
 
-      {/* Approval Alert */}
-      <section className="p-5 rounded-2xl border border-orange-100 bg-orange-50">
-        <div className="flex-col gap-4 flex sm:flex-row sm:items-center sm:justify-between">
-          <div className="gap-4 flex items-center">
-            <div className="h-11 w-11 justify-center rounded-xl bg-orange-100 text-orange-600 flex items-center">
-              <AlertTriangle size={21} />
+      {/* Approval Alert if pending */}
+      {statsData.pendingPharmacies > 0 && (
+        <section className="p-5 rounded-2xl border border-orange-100 bg-orange-50">
+          <div className="flex-col gap-4 flex sm:flex-row sm:items-center sm:justify-between">
+            <div className="gap-4 flex items-center">
+              <div className="h-11 w-11 justify-center rounded-xl bg-orange-100 text-orange-600 flex items-center">
+                <AlertTriangle size={21} />
+              </div>
+
+              <div>
+                <h2 className="font-bold text-gray-900">
+                  Pharmacy approvals pending verification
+                </h2>
+
+                <p className="mt-1 text-sm text-gray-600">
+                  {statsData.pendingPharmacies} pharmacy application(s) awaiting your review.
+                </p>
+              </div>
             </div>
 
-            <div>
-              <h2 className="font-bold text-gray-900">
-                Pharmacy approvals pending
-              </h2>
-
-              <p className="mt-1 text-sm text-gray-600">
-                7 pharmacies are waiting for admin approval.
-              </p>
-            </div>
+            <Link
+              to="/admin/pharmacies"
+              className="gap-2 px-4 py-2.5 justify-center rounded-xl bg-orange-500 text-sm font-bold text-white inline-flex items-center transition hover:bg-orange-600"
+            >
+              Review Pharmacies
+              <ArrowRight size={16} />
+            </Link>
           </div>
+        </section>
+      )}
 
-          <Link
-            to="/admin/pharmacies"
-            className="gap-2 px-4 py-2.5 justify-center rounded-xl bg-orange-500 text-sm font-bold text-white inline-flex items-center transition hover:bg-orange-600"
-          >
-            Review Pharmacies
-            <ArrowRight size={16} />
-          </Link>
-        </div>
-      </section>
-
-      {/* Management */}
+      {/* Management Cards */}
       <section>
         <div className="mb-4">
           <h2 className="text-xl font-extrabold text-gray-900">
             Platform Management
           </h2>
-
           <p className="mt-1 text-sm text-gray-500">
-            Manage the major areas of the MediFind platform.
+            Manage all operational sectors of MediFind
           </p>
         </div>
 
@@ -224,189 +259,81 @@ function AdminDashboard() {
         </div>
       </section>
 
-      {/* Activity + Orders */}
+      {/* Recent Activity */}
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Recent Activity */}
         <div className="p-6 rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="justify-between flex items-center">
-            <div>
-              <h2 className="font-extrabold text-gray-900">Recent Activity</h2>
-
-              <p className="mt-1 text-sm text-gray-500">
-                Latest platform activities
-              </p>
-            </div>
-
-            <Activity size={20} className="text-green-600" />
+          <div className="flex items-center justify-between border-b border-gray-50 pb-3">
+            <h2 className="font-extrabold text-gray-900">Recent Platform Orders</h2>
+            <Link
+              to="/admin/orders"
+              className="text-xs font-bold text-green-600 hover:text-green-700"
+            >
+              View All →
+            </Link>
           </div>
 
-          <div className="mt-5 space-y-4">
-            <div className="gap-3 flex">
-              <div className="h-9 w-9 justify-center rounded-lg bg-green-100 text-green-600 flex shrink-0 items-center">
-                <UserCheck size={17} />
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold text-gray-900">
-                  New pharmacy registered
-                </p>
-
-                <p className="mt-1 text-xs text-gray-500">
-                  CityCare Pharmacy submitted registration.
-                </p>
-
-                <span className="mt-1 text-[10px] text-gray-400 block">
-                  10 minutes ago
-                </span>
-              </div>
-            </div>
-
-            <div className="gap-3 flex">
-              <div className="h-9 w-9 justify-center rounded-lg bg-blue-100 text-blue-600 flex shrink-0 items-center">
-                <Users size={17} />
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold text-gray-900">
-                  New customer registered
-                </p>
-
-                <p className="mt-1 text-xs text-gray-500">
-                  A new customer joined MediFind.
-                </p>
-
-                <span className="mt-1 text-[10px] text-gray-400 block">
-                  25 minutes ago
-                </span>
-              </div>
-            </div>
-
-            <div className="gap-3 flex">
-              <div className="h-9 w-9 justify-center rounded-lg bg-purple-100 text-purple-600 flex shrink-0 items-center">
-                <Package size={17} />
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold text-gray-900">
-                  Order completed
-                </p>
-
-                <p className="mt-1 text-xs text-gray-500">
-                  Order #MF-1023 was successfully delivered.
-                </p>
-
-                <span className="mt-1 text-[10px] text-gray-400 block">
-                  1 hour ago
-                </span>
-              </div>
-            </div>
+          <div className="mt-4 divide-y divide-gray-50">
+            {recentOrders.length === 0 ? (
+              <p className="py-6 text-center text-xs text-gray-400">
+                No orders registered yet.
+              </p>
+            ) : (
+              recentOrders.map((o) => (
+                <div key={o._id} className="py-2.5 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="font-bold text-gray-900">
+                      #{o._id.slice(-6).toUpperCase()}
+                    </span>
+                    <span className="text-gray-500 ml-2">
+                      {o.pharmacy?.storeName}
+                    </span>
+                  </div>
+                  <span className="font-semibold text-gray-800">
+                    ₹{o.totalAmount}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        {/* Order Overview */}
         <div className="p-6 rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="justify-between flex items-center">
-            <div>
-              <h2 className="font-extrabold text-gray-900">Order Overview</h2>
+          <div className="flex items-center justify-between border-b border-gray-50 pb-3">
+            <h2 className="font-extrabold text-gray-900">Partner Pharmacies</h2>
+            <Link
+              to="/admin/pharmacies"
+              className="text-xs font-bold text-green-600 hover:text-green-700"
+            >
+              Manage →
+            </Link>
+          </div>
 
-              <p className="mt-1 text-sm text-gray-500">
-                Today's platform orders
+          <div className="mt-4 divide-y divide-gray-50">
+            {recentPharmacies.length === 0 ? (
+              <p className="py-6 text-center text-xs text-gray-400">
+                No pharmacies registered yet.
               </p>
-            </div>
-
-            <Clock3 size={20} className="text-gray-400" />
-          </div>
-
-          <div className="mt-6 space-y-4">
-            <div>
-              <div className="flex justify-between text-sm">
-                <span className="font-medium text-gray-600">Delivered</span>
-
-                <span className="font-bold text-green-600">72%</span>
-              </div>
-
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
-                <div className="h-full w-[72%] rounded-full bg-green-500" />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between text-sm">
-                <span className="font-medium text-gray-600">Processing</span>
-
-                <span className="font-bold text-blue-600">18%</span>
-              </div>
-
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
-                <div className="h-full w-[18%] rounded-full bg-blue-500" />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between text-sm">
-                <span className="font-medium text-gray-600">Cancelled</span>
-
-                <span className="font-bold text-red-600">10%</span>
-              </div>
-
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
-                <div className="h-full w-[10%] rounded-full bg-red-500" />
-              </div>
-            </div>
-          </div>
-
-          <Link
-            to="/admin/orders"
-            className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-gray-900 py-3 text-sm font-bold text-white transition hover:bg-gray-800"
-          >
-            View All Orders
-            <ArrowRight size={17} />
-          </Link>
-        </div>
-      </section>
-
-      {/* System Status */}
-      <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-100 text-green-600">
-            <CheckCircle2 size={21} />
-          </div>
-
-          <div>
-            <h2 className="font-extrabold text-gray-900">System Status</h2>
-
-            <p className="text-sm text-gray-500">MediFind platform services</p>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="flex items-center justify-between rounded-xl bg-gray-50 p-4">
-            <span className="text-sm font-medium text-gray-600">
-              API Server
-            </span>
-
-            <span className="flex items-center gap-2 text-xs font-bold text-green-600">
-              <span className="h-2 w-2 rounded-full bg-green-500" />
-              Operational
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between rounded-xl bg-gray-50 p-4">
-            <span className="text-sm font-medium text-gray-600">Database</span>
-
-            <span className="flex items-center gap-2 text-xs font-bold text-green-600">
-              <span className="h-2 w-2 rounded-full bg-green-500" />
-              Operational
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between rounded-xl bg-gray-50 p-4">
-            <span className="text-sm font-medium text-gray-600">Socket.IO</span>
-
-            <span className="flex items-center gap-2 text-xs font-bold text-green-600">
-              <span className="h-2 w-2 rounded-full bg-green-500" />
-              Operational
-            </span>
+            ) : (
+              recentPharmacies.map((p) => (
+                <div key={p._id} className="py-2.5 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="font-bold text-gray-900">{p.storeName}</span>
+                    <span className="text-gray-400 ml-2">
+                      by {p.owner?.name}
+                    </span>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      p.approvalStatus === "APPROVED"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {p.approvalStatus}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </section>

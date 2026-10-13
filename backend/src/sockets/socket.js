@@ -5,14 +5,21 @@ const setIO = (socketIO) => {
 };
 
 const getIO = () => {
-  if (!io) {
-    throw new Error("Socket.IO is not initialized");
-  }
-
   return io;
+};
+
+const emitToOrder = (orderId, event, data) => {
+  if (io) {
+    try {
+      io.to(`order:${orderId}`).emit(event, data);
+    } catch (err) {
+      console.error("Socket emit error:", err);
+    }
+  }
 };
 
 module.exports = {
   setIO,
   getIO,
+  emitToOrder,
 };

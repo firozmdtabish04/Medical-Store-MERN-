@@ -1,7 +1,8 @@
 const Order = require("../models/Order");
 const { createOrder } = require("../services/order.service");
+const { emitToOrder } = require("../sockets/socket");
 
-// CUSTOMER
+// CUSTOMER: PLACE ORDER
 const placeOrder = async (req, res, next) => {
   try {
     const { pharmacyId, items, deliveryAddress, paymentMethod } = req.body;
@@ -33,6 +34,11 @@ const placeOrder = async (req, res, next) => {
       .populate("pharmacy", "storeName phone address")
       .populate("items.medicine", "name genericName brandName");
 
+    emitToOrder(order._id, "order-status-updated", {
+      orderId: order._id,
+      status: "PENDING",
+    });
+
     res.status(201).json({
       success: true,
       message: "Order placed successfully",
@@ -43,14 +49,15 @@ const placeOrder = async (req, res, next) => {
   }
 };
 
-// CUSTOMER
+// CUSTOMER: GET MY ORDERS
 const getMyOrders = async (req, res, next) => {
   try {
     const orders = await Order.find({
       customer: req.user._id,
     })
       .populate("pharmacy", "storeName phone address")
-      .populate("items.medicine", "name genericName brandName")
+      .populate("deliveryPartner", "name phone")
+      .populate("items.medicine", "name genericName brandName dosage")
       .sort({ createdAt: -1 });
 
     res.json({
@@ -63,16 +70,20 @@ const getMyOrders = async (req, res, next) => {
   }
 };
 
-// CUSTOMER
+// CUSTOMER: GET SINGLE ORDER BY ID
 const getOrderById = async (req, res, next) => {
   try {
-    const order = await Order.findOne({
-      _id: req.params.id,
-      customer: req.user._id,
-    })
-      .populate("pharmacy", "storeName phone address")
+    // Customer can see their own order; pharmacist/delivery/admin can also view if authorized
+    const query = { _id: req.params.id };
+    if (req.user.role === "CUSTOMER") {
+      query.customer = req.user._id;
+    }
+
+    const order = await Order.findOne(query)
+      .populate("customer", "name email phone")
+      .populate("pharmacy", "storeName phone address location")
       .populate("deliveryPartner", "name phone")
-      .populate("items.medicine", "name genericName brandName");
+      .populate("items.medicine", "name genericName brandName dosage image");
 
     if (!order) {
       return res.status(404).json({
@@ -90,7 +101,56 @@ const getOrderById = async (req, res, next) => {
   }
 };
 
-// PHARMACIST
+// CUSTOMER: CANCEL ORDER (IF STILL PENDING)
+const cancelOrder = async (req, res, next) => {
+  try {
+    const order = await Order.findOne({
+      _id: req.params.id,
+      customer: req.user._id,
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    if (order.orderStatus !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot cancel order that is already confirmed or processing",
+      });
+    }
+
+    order.orderStatus = "CANCELLED";
+    await order.save();
+
+    // Restock items
+    const PharmacyMedicine = require("../models/PharmacyMedicine");
+    for (const item of order.items) {
+      await PharmacyMedicine.updateOne(
+        { pharmacy: order.pharmacy, medicine: item.medicine },
+        { $inc: { stock: item.quantity } },
+      );
+    }
+
+    emitToOrder(order._id, "order-status-updated", {
+      orderId: order._id,
+      status: "CANCELLED",
+    });
+
+    res.json({
+      success: true,
+      message: "Order cancelled successfully",
+      order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PHARMACIST: GET ORDERS FOR PHARMACY
 const getPharmacyOrders = async (req, res, next) => {
   try {
     const Pharmacy = require("../models/Pharmacy");
@@ -110,7 +170,8 @@ const getPharmacyOrders = async (req, res, next) => {
       pharmacy: pharmacy._id,
     })
       .populate("customer", "name email phone")
-      .populate("items.medicine", "name genericName brandName")
+      .populate("deliveryPartner", "name phone")
+      .populate("items.medicine", "name genericName brandName dosage")
       .sort({ createdAt: -1 });
 
     res.json({
@@ -123,7 +184,7 @@ const getPharmacyOrders = async (req, res, next) => {
   }
 };
 
-// PHARMACIST
+// PHARMACIST: UPDATE ORDER STATUS
 const updateOrderStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
@@ -169,7 +230,23 @@ const updateOrderStatus = async (req, res, next) => {
 
     order.orderStatus = status;
 
+    if (status === "REJECTED") {
+      // Restock items
+      const PharmacyMedicine = require("../models/PharmacyMedicine");
+      for (const item of order.items) {
+        await PharmacyMedicine.updateOne(
+          { pharmacy: order.pharmacy, medicine: item.medicine },
+          { $inc: { stock: item.quantity } },
+        );
+      }
+    }
+
     await order.save();
+
+    emitToOrder(order._id, "order-status-updated", {
+      orderId: order._id,
+      status,
+    });
 
     res.json({
       success: true,
@@ -185,6 +262,7 @@ module.exports = {
   placeOrder,
   getMyOrders,
   getOrderById,
+  cancelOrder,
   getPharmacyOrders,
   updateOrderStatus,
 };

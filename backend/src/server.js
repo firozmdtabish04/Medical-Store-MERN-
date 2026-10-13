@@ -78,6 +78,9 @@ const io = new Server(server, {
   },
 });
 
+const { setIO } = require("./sockets/socket");
+setIO(io);
+
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 

@@ -581,6 +581,136 @@ const getPharmacyMedicines = async (req, res, next) => {
     next(error);
   }
 };
+
+// =====================================================
+// GET APPROVED PHARMACIES (PUBLIC / CUSTOMER)
+// =====================================================
+
+const getApprovedPharmacies = async (req, res, next) => {
+  try {
+    const { search, city } = req.query;
+
+    const query = {
+      approvalStatus: "APPROVED",
+      isActive: true,
+    };
+
+    if (search && search.trim() !== "") {
+      const regex = { $regex: search.trim(), $options: "i" };
+      query.$or = [
+        { storeName: regex },
+        { "address.street": regex },
+        { "address.city": regex },
+      ];
+    }
+
+    if (city && city.trim() !== "") {
+      query["address.city"] = { $regex: city.trim(), $options: "i" };
+    }
+
+    const pharmacies = await Pharmacy.find(query).sort({ storeName: 1 });
+
+    const formattedPharmacies = pharmacies.map((p) => {
+      let isOpen = false;
+      try {
+        isOpen = getStoreOpenStatus(p.openingTime, p.closingTime);
+      } catch (err) {
+        isOpen = true;
+      }
+
+      return {
+        ...p.toObject(),
+        isOpen,
+      };
+    });
+
+    res.json({
+      success: true,
+      count: formattedPharmacies.length,
+      pharmacies: formattedPharmacies,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =====================================================
+// GET PHARMACIST SALES & STATS
+// =====================================================
+
+const getPharmacistSalesStats = async (req, res, next) => {
+  try {
+    const pharmacy = await Pharmacy.findOne({
+      owner: req.user._id,
+    });
+
+    if (!pharmacy) {
+      return res.status(404).json({
+        success: false,
+        message: "Pharmacy not found",
+      });
+    }
+
+    const Order = require("../models/Order");
+
+    const orders = await Order.find({ pharmacy: pharmacy._id })
+      .populate("customer", "name email phone")
+      .populate("items.medicine", "name")
+      .sort({ createdAt: -1 });
+
+    let totalRevenue = 0;
+    let todayRevenue = 0;
+    let completedOrders = 0;
+    let pendingOrders = 0;
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    for (const order of orders) {
+      if (order.orderStatus === "DELIVERED") {
+        totalRevenue += order.totalAmount;
+        completedOrders += 1;
+
+        if (new Date(order.createdAt) >= startOfToday) {
+          todayRevenue += order.totalAmount;
+        }
+      } else if (
+        order.orderStatus !== "CANCELLED" &&
+        order.orderStatus !== "REJECTED"
+      ) {
+        pendingOrders += 1;
+      }
+    }
+
+    const totalMedicinesCount = await PharmacyMedicine.countDocuments({
+      pharmacy: pharmacy._id,
+      isActive: true,
+    });
+
+    const lowStockCount = await PharmacyMedicine.countDocuments({
+      pharmacy: pharmacy._id,
+      isActive: true,
+      stock: { $lte: 10 },
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        totalRevenue,
+        todayRevenue,
+        totalOrders: orders.length,
+        completedOrders,
+        pendingOrders,
+        totalMedicines: totalMedicinesCount,
+        lowStockMedicines: lowStockCount,
+      },
+      recentOrders: orders.slice(0, 10),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // =====================================================
 // EXPORT
 // =====================================================
@@ -590,6 +720,8 @@ module.exports = {
   getMyPharmacy,
   updatePharmacy,
   searchMedicineNearby,
+  getApprovedPharmacies,
+  getPharmacistSalesStats,
   getPharmacyDetails,
   getPharmacyMedicines,
 };

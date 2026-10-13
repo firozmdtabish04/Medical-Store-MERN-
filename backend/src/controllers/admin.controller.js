@@ -1,4 +1,194 @@
 const Pharmacy = require("../models/Pharmacy");
+const User = require("../models/User");
+const Medicine = require("../models/Medicine");
+const Order = require("../models/Order");
+
+// In-memory / dynamic platform settings store
+let platformSettings = {
+  platformName: "MediFind Healthcare",
+  supportEmail: "support@medifind.com",
+  supportPhone: "+91 98765 43210",
+  freeDeliveryThreshold: 500,
+  standardDeliveryFee: 40,
+  taxPercentage: 5,
+  autoAssignDelivery: true,
+  allowCashOnDelivery: true,
+  allowOnlinePayments: true,
+  operationalStatus: "ACTIVE",
+};
+
+// ==========================================
+// GET ADMIN DASHBOARD STATS
+// ==========================================
+
+const getAdminStats = async (req, res, next) => {
+  try {
+    const [
+      totalUsers,
+      totalCustomers,
+      totalPharmacists,
+      totalDeliveryPartners,
+      totalPharmacies,
+      pendingPharmacies,
+      totalMedicines,
+      totalOrders,
+      ordersAggregate,
+      recentOrders,
+      recentPharmacies,
+    ] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ role: "CUSTOMER" }),
+      User.countDocuments({ role: "PHARMACIST" }),
+      User.countDocuments({ role: "DELIVERY" }),
+      Pharmacy.countDocuments({ approvalStatus: "APPROVED" }),
+      Pharmacy.countDocuments({ approvalStatus: "PENDING" }),
+      Medicine.countDocuments({ isActive: true }),
+      Order.countDocuments(),
+      Order.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: "$totalAmount" },
+            deliveredOrders: {
+              $sum: { $cond: [{ $eq: ["$orderStatus", "DELIVERED"] }, 1, 0] },
+            },
+          },
+        },
+      ]),
+      Order.find()
+        .populate("customer", "name email")
+        .populate("pharmacy", "storeName")
+        .sort({ createdAt: -1 })
+        .limit(5),
+      Pharmacy.find()
+        .populate("owner", "name email phone")
+        .sort({ createdAt: -1 })
+        .limit(5),
+    ]);
+
+    const totalRevenue =
+      ordersAggregate.length > 0 ? ordersAggregate[0].totalRevenue : 0;
+    const deliveredCount =
+      ordersAggregate.length > 0 ? ordersAggregate[0].deliveredOrders : 0;
+
+    res.json({
+      success: true,
+      stats: {
+        totalUsers,
+        totalCustomers,
+        totalPharmacists,
+        totalDeliveryPartners,
+        totalPharmacies,
+        pendingPharmacies,
+        totalMedicines,
+        totalOrders,
+        deliveredCount,
+        totalRevenue,
+      },
+      recentOrders,
+      recentPharmacies,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// GET ALL USERS (WITH SEARCH & FILTER)
+// ==========================================
+
+const getAllUsers = async (req, res, next) => {
+  try {
+    const { role, search, status } = req.query;
+
+    const query = {};
+
+    if (role && role !== "ALL") {
+      query.role = role.toUpperCase();
+    }
+
+    if (status && status !== "ALL") {
+      query.isActive = status === "ACTIVE";
+    }
+
+    if (search && search.trim() !== "") {
+      const regex = { $regex: search.trim(), $options: "i" };
+      query.$or = [{ name: regex }, { email: regex }, { phone: regex }];
+    }
+
+    const users = await User.find(query).select("-password").sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: users.length,
+      users,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// TOGGLE USER STATUS (ACTIVE/INACTIVE)
+// ==========================================
+
+const toggleUserStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id).select("-password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    user.isActive = !user.isActive;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: `User ${user.isActive ? "activated" : "deactivated"} successfully`,
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// GET ALL PHARMACIES (ALL STATUSES)
+// ==========================================
+
+const getAllPharmacies = async (req, res, next) => {
+  try {
+    const { status, search } = req.query;
+
+    const query = {};
+
+    if (status && status !== "ALL") {
+      query.approvalStatus = status.toUpperCase();
+    }
+
+    if (search && search.trim() !== "") {
+      query.storeName = { $regex: search.trim(), $options: "i" };
+    }
+
+    const pharmacies = await Pharmacy.find(query)
+      .populate("owner", "name email phone")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: pharmacies.length,
+      pharmacies,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // ==========================================
 // GET PENDING PHARMACIES
@@ -85,8 +275,121 @@ const rejectPharmacy = async (req, res, next) => {
   }
 };
 
+// ==========================================
+// GET ALL ORDERS ACROSS PLATFORM
+// ==========================================
+
+const getAllOrders = async (req, res, next) => {
+  try {
+    const { status, search } = req.query;
+
+    const query = {};
+
+    if (status && status !== "ALL") {
+      query.orderStatus = status;
+    }
+
+    const orders = await Order.find(query)
+      .populate("customer", "name email phone")
+      .populate("pharmacy", "storeName phone address")
+      .populate("deliveryPartner", "name phone")
+      .populate("items.medicine", "name dosage")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: orders.length,
+      orders,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// GET DELIVERY PARTNERS WITH STATS
+// ==========================================
+
+const getDeliveryPartners = async (req, res, next) => {
+  try {
+    const partners = await User.find({ role: "DELIVERY" })
+      .select("-password")
+      .sort({ createdAt: -1 });
+
+    // Aggregate delivery counts for partners
+    const partnersWithStats = await Promise.all(
+      partners.map(async (partner) => {
+        const [activeCount, completedCount] = await Promise.all([
+          Order.countDocuments({
+            deliveryPartner: partner._id,
+            orderStatus: { $in: ["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERY_ASSIGNED"] },
+          }),
+          Order.countDocuments({
+            deliveryPartner: partner._id,
+            orderStatus: "DELIVERED",
+          }),
+        ]);
+
+        return {
+          ...partner.toObject(),
+          activeDeliveries: activeCount,
+          completedDeliveries: completedCount,
+        };
+      }),
+    );
+
+    res.json({
+      success: true,
+      count: partnersWithStats.length,
+      deliveryPartners: partnersWithStats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// PLATFORM SETTINGS
+// ==========================================
+
+const getSettings = async (req, res, next) => {
+  try {
+    res.json({
+      success: true,
+      settings: platformSettings,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateSettings = async (req, res, next) => {
+  try {
+    platformSettings = {
+      ...platformSettings,
+      ...req.body,
+    };
+
+    res.json({
+      success: true,
+      message: "Platform settings updated successfully",
+      settings: platformSettings,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
+  getAdminStats,
+  getAllUsers,
+  toggleUserStatus,
+  getAllPharmacies,
   getPendingPharmacies,
   approvePharmacy,
   rejectPharmacy,
+  getAllOrders,
+  getDeliveryPartners,
+  getSettings,
+  updateSettings,
 };

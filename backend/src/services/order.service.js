@@ -11,16 +11,28 @@ const createOrder = async ({
   deliveryAddress,
   paymentMethod = "COD",
 }) => {
-  const session = await mongoose.startSession();
+  // Check if transactions are supported
+  let session = null;
+  let useTransaction = false;
 
   try {
+    session = await mongoose.startSession();
     session.startTransaction();
+    useTransaction = true;
+  } catch (err) {
+    // If standalone MongoDB instance without replica set, proceed without transaction
+    session = null;
+    useTransaction = false;
+  }
 
-    const pharmacy = await Pharmacy.findOne({
+  try {
+    const pharmacyQuery = Pharmacy.findOne({
       _id: pharmacyId,
       approvalStatus: "APPROVED",
       isActive: true,
-    }).session(session);
+    });
+    if (useTransaction) pharmacyQuery.session(session);
+    const pharmacy = await pharmacyQuery;
 
     if (!pharmacy) {
       throw new Error("Pharmacy not found or not approved");
@@ -34,13 +46,13 @@ const createOrder = async ({
     const orderItems = [];
 
     for (const item of items) {
-      const inventory = await PharmacyMedicine.findOne({
+      const inventoryQuery = PharmacyMedicine.findOne({
         _id: item.inventoryId,
         pharmacy: pharmacyId,
         isActive: true,
-      })
-        .populate("medicine")
-        .session(session);
+      }).populate("medicine");
+      if (useTransaction) inventoryQuery.session(session);
+      const inventory = await inventoryQuery;
 
       if (!inventory) {
         throw new Error("Medicine inventory not found");
@@ -68,39 +80,48 @@ const createOrder = async ({
 
       inventory.stock -= item.quantity;
 
-      await inventory.save({ session });
+      if (useTransaction) {
+        await inventory.save({ session });
+      } else {
+        await inventory.save();
+      }
     }
 
     const deliveryFee = subtotal >= 500 ? 0 : 40;
-
     const totalAmount = subtotal + deliveryFee;
 
-    const order = await Order.create(
-      [
-        {
-          customer: customerId,
-          pharmacy: pharmacyId,
-          items: orderItems,
-          subtotal,
-          deliveryFee,
-          discount: 0,
-          totalAmount,
-          deliveryAddress,
-          paymentStatus: paymentMethod === "COD" ? "PENDING" : "PENDING",
-          orderStatus: "PENDING",
-        },
-      ],
-      { session },
-    );
+    const orderPayload = {
+      customer: customerId,
+      pharmacy: pharmacyId,
+      items: orderItems,
+      subtotal,
+      deliveryFee,
+      discount: 0,
+      totalAmount,
+      deliveryAddress,
+      paymentStatus: paymentMethod === "COD" ? "PENDING" : "PENDING",
+      orderStatus: "PENDING",
+    };
 
-    await session.commitTransaction();
+    let order;
+    if (useTransaction) {
+      const created = await Order.create([orderPayload], { session });
+      await session.commitTransaction();
+      order = created[0];
+    } else {
+      order = await Order.create(orderPayload);
+    }
 
-    return order[0];
+    return order;
   } catch (error) {
-    await session.abortTransaction();
+    if (useTransaction && session) {
+      await session.abortTransaction();
+    }
     throw error;
   } finally {
-    session.endSession();
+    if (session) {
+      session.endSession();
+    }
   }
 };
 
