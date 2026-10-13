@@ -167,14 +167,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 const searchMedicineNearby = async (req, res, next) => {
   try {
-    const { q, longitude, latitude, radius = 50000, limit = 20 } = req.query;
-
-    if (!q || q.trim() === "") {
-      return res.status(400).json({
-        success: false,
-        message: "Medicine search query is required",
-      });
-    }
+    const { q, category, longitude, latitude, radius = 50000, limit = 100 } = req.query;
 
     const hasLocation =
       longitude !== undefined &&
@@ -185,42 +178,52 @@ const searchMedicineNearby = async (req, res, next) => {
     const userLng = hasLocation ? Number(longitude) : null;
     const userLat = hasLocation ? Number(latitude) : null;
 
-    // -----------------------------------------------
-    // Find medicine matching query
-    // -----------------------------------------------
-    const medicine = await Medicine.findOne({
-      $or: [
-        { name: { $regex: q.trim(), $options: "i" } },
-        { genericName: { $regex: q.trim(), $options: "i" } },
-        { brandName: { $regex: q.trim(), $options: "i" } },
-      ],
-      isActive: true,
-    });
-
-    if (!medicine) {
-      return res.status(404).json({
-        success: false,
-        message: "Medicine not found in catalog",
-        stores: [],
-      });
-    }
-
-    // -----------------------------------------------
-    // Find all inventory entries with approved pharmacies
-    // -----------------------------------------------
-    const inventories = await PharmacyMedicine.find({
-      medicine: medicine._id,
+    let inventoryQuery = {
       isActive: true,
       status: { $ne: "OUT_OF_STOCK" },
       stock: { $gt: 0 },
-    }).populate("pharmacy");
+    };
+
+    // If search term provided, find all matching medicines across name, genericName, brandName, category
+    if (q && q.trim() !== "") {
+      const regex = { $regex: q.trim(), $options: "i" };
+      const matchedMeds = await Medicine.find({
+        $or: [
+          { name: regex },
+          { genericName: regex },
+          { brandName: regex },
+          { category: regex },
+        ],
+        isActive: true,
+      }).select("_id");
+
+      const medIds = matchedMeds.map((m) => m._id);
+      inventoryQuery.medicine = { $in: medIds };
+    }
+
+    const inventories = await PharmacyMedicine.find(inventoryQuery)
+      .populate("pharmacy")
+      .populate("medicine");
 
     const stores = [];
 
     for (const inv of inventories) {
       const pharmacy = inv.pharmacy;
+      const medicine = inv.medicine;
+
       if (!pharmacy || pharmacy.approvalStatus !== "APPROVED" || !pharmacy.isActive) {
         continue;
+      }
+      if (!medicine || !medicine.isActive) {
+        continue;
+      }
+
+      // Filter by category if requested
+      if (category && category !== "ALL") {
+        const medCat = (medicine.category || "").toUpperCase();
+        if (medCat !== category.toUpperCase()) {
+          continue;
+        }
       }
 
       let distanceKm = 0;
@@ -258,7 +261,10 @@ const searchMedicineNearby = async (req, res, next) => {
           name: medicine.name,
           genericName: medicine.genericName,
           brandName: medicine.brandName,
+          category: medicine.category,
           dosage: medicine.dosage,
+          description: medicine.description,
+          prescriptionRequired: medicine.prescriptionRequired,
         },
         price: inv.price,
         discount,
@@ -275,11 +281,11 @@ const searchMedicineNearby = async (req, res, next) => {
       stores.sort((a, b) => a.effectivePrice - b.effectivePrice);
     }
 
-    const limitedStores = stores.slice(0, Number(limit) || 20);
+    const limitedStores = stores.slice(0, Number(limit) || 100);
 
     res.json({
       success: true,
-      search: q,
+      search: q || "",
       count: limitedStores.length,
       stores: limitedStores,
     });

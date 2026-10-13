@@ -136,6 +136,7 @@ function App() {
           <Route path="/customer/orders" element={<Orders />} />
           <Route path="/customer/orders/:id" element={<OrderDetails />} />
           <Route path="/customer/tracking" element={<OrderTracking />} />
+          <Route path="/customer/tracking/:id" element={<OrderTracking />} />
         </Route>
 
         {/* =================================================
