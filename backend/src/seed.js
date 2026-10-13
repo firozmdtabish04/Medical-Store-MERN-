@@ -52,6 +52,9 @@ const seedDatabase = async () => {
       console.log(
         "Created Pharmacist account: pharmacist@medifind.com / Password@123",
       );
+    } else {
+      pharmacist.isActive = true;
+      await pharmacist.save();
     }
 
     // 3. Create Delivery Partner
@@ -70,6 +73,9 @@ const seedDatabase = async () => {
       console.log(
         "Created Delivery account: delivery@medifind.com / Password@123",
       );
+    } else {
+      deliveryPartner.isActive = true;
+      await deliveryPartner.save();
     }
 
     // 4. Create Customer
@@ -86,6 +92,9 @@ const seedDatabase = async () => {
       console.log(
         "Created Customer account: customer@medifind.com / Password@123",
       );
+    } else {
+      customer.isActive = true;
+      await customer.save();
     }
 
     // 5. Seed Core Medicines

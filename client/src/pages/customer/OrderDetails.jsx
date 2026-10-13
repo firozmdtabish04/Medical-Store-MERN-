@@ -440,22 +440,42 @@ function OrderDetails() {
         </CardContent>
       </Card>
 
-      {/* TRACK BUTTON */}
+      {/* ACTION BUTTONS */}
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 3 }}>
+        {!["CANCELLED", "REJECTED"].includes(order.orderStatus) && (
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            color="success"
+            startIcon={<LocalShipping />}
+            onClick={() => navigate(`/customer/tracking?order=${order._id}`)}
+          >
+            Live Tracking
+          </Button>
+        )}
 
-      {["DELIVERY_ASSIGNED", "PICKED_UP", "OUT_FOR_DELIVERY"].includes(
-        order.orderStatus,
-      ) && (
-        <Button
-          fullWidth
-          variant="contained"
-          size="large"
-          startIcon={<LocalShipping />}
-          sx={{ mt: 3 }}
-          onClick={() => navigate(`/customer/tracking?order=${order._id}`)}
-        >
-          Track Delivery
-        </Button>
-      )}
+        {order.orderStatus === "PENDING" && (
+          <Button
+            fullWidth
+            variant="outlined"
+            size="large"
+            color="error"
+            onClick={async () => {
+              if (window.confirm("Are you sure you want to cancel this order?")) {
+                try {
+                  await api.patch(`/orders/${order._id}/cancel`);
+                  fetchOrder();
+                } catch (err) {
+                  alert(err.response?.data?.message || "Failed to cancel order");
+                }
+              }
+            }}
+          >
+            Cancel Order
+          </Button>
+        )}
+      </Stack>
     </Box>
   );
 }

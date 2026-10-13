@@ -151,13 +151,23 @@ const getStoreOpenStatus = (openingTime, closingTime) => {
 // SEARCH MEDICINE IN NEARBY PHARMACIES
 // =====================================================
 
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Number((R * c).toFixed(2));
+};
+
 const searchMedicineNearby = async (req, res, next) => {
   try {
-    const { q, longitude, latitude, radius = 5000, limit = 5 } = req.query;
-
-    // -----------------------------------------------
-    // Validate search
-    // -----------------------------------------------
+    const { q, longitude, latitude, radius = 50000, limit = 20 } = req.query;
 
     if (!q || q.trim() === "") {
       return res.status(400).json({
@@ -166,273 +176,112 @@ const searchMedicineNearby = async (req, res, next) => {
       });
     }
 
-    // -----------------------------------------------
-    // Validate location
-    // -----------------------------------------------
+    const hasLocation =
+      longitude !== undefined &&
+      latitude !== undefined &&
+      !Number.isNaN(Number(longitude)) &&
+      !Number.isNaN(Number(latitude));
 
-    if (longitude === undefined || latitude === undefined) {
-      return res.status(400).json({
-        success: false,
-        message: "Longitude and latitude are required",
-      });
-    }
-
-    const longitudeNumber = Number(longitude);
-    const latitudeNumber = Number(latitude);
-
-    if (Number.isNaN(longitudeNumber) || Number.isNaN(latitudeNumber)) {
-      return res.status(400).json({
-        success: false,
-        message: "Longitude and latitude must be valid numbers",
-      });
-    }
-
-    if (
-      longitudeNumber < -180 ||
-      longitudeNumber > 180 ||
-      latitudeNumber < -90 ||
-      latitudeNumber > 90
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid coordinates",
-      });
-    }
+    const userLng = hasLocation ? Number(longitude) : null;
+    const userLat = hasLocation ? Number(latitude) : null;
 
     // -----------------------------------------------
-    // Radius and limit
+    // Find medicine matching query
     // -----------------------------------------------
-
-    const radiusNumber = Math.min(Number(radius) || 5000, 20000);
-
-    const limitNumber = Math.min(Number(limit) || 5, 20);
-
-    // -----------------------------------------------
-    // Find medicine
-    // -----------------------------------------------
-
     const medicine = await Medicine.findOne({
       $or: [
-        {
-          name: {
-            $regex: q.trim(),
-            $options: "i",
-          },
-        },
-        {
-          genericName: {
-            $regex: q.trim(),
-            $options: "i",
-          },
-        },
-        {
-          brandName: {
-            $regex: q.trim(),
-            $options: "i",
-          },
-        },
+        { name: { $regex: q.trim(), $options: "i" } },
+        { genericName: { $regex: q.trim(), $options: "i" } },
+        { brandName: { $regex: q.trim(), $options: "i" } },
       ],
-
       isActive: true,
     });
 
     if (!medicine) {
       return res.status(404).json({
         success: false,
-        message: "Medicine not found",
+        message: "Medicine not found in catalog",
+        stores: [],
       });
     }
 
     // -----------------------------------------------
-    // Find nearby approved pharmacies
+    // Find all inventory entries with approved pharmacies
     // -----------------------------------------------
+    const inventories = await PharmacyMedicine.find({
+      medicine: medicine._id,
+      isActive: true,
+      status: { $ne: "OUT_OF_STOCK" },
+      stock: { $gt: 0 },
+    }).populate("pharmacy");
 
-    const pharmacies = await Pharmacy.aggregate([
-      {
-        $geoNear: {
-          near: {
-            type: "Point",
-            coordinates: [longitudeNumber, latitudeNumber],
-          },
+    const stores = [];
 
-          distanceField: "distance",
+    for (const inv of inventories) {
+      const pharmacy = inv.pharmacy;
+      if (!pharmacy || pharmacy.approvalStatus !== "APPROVED" || !pharmacy.isActive) {
+        continue;
+      }
 
-          maxDistance: radiusNumber,
+      let distanceKm = 0;
+      if (hasLocation && pharmacy.location?.coordinates?.length === 2) {
+        const [pharmLng, pharmLat] = pharmacy.location.coordinates;
+        distanceKm = calculateDistance(userLat, userLng, pharmLat, pharmLng);
+      }
 
-          spherical: true,
+      const discount = inv.discount || 0;
+      const effectivePrice = inv.price - (inv.price * discount) / 100;
 
-          query: {
-            approvalStatus: "APPROVED",
-            isActive: true,
-          },
-        },
-      },
+      let isOpen = false;
+      try {
+        isOpen = getStoreOpenStatus(pharmacy.openingTime, pharmacy.closingTime);
+      } catch (err) {
+        isOpen = true;
+      }
 
-      // -------------------------------------------
-      // Find medicine inventory
-      // -------------------------------------------
-
-      {
-        $lookup: {
-          from: "pharmacymedicines",
-
-          let: {
-            pharmacyId: "$_id",
-          },
-
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    {
-                      $eq: ["$pharmacy", "$$pharmacyId"],
-                    },
-
-                    {
-                      $eq: ["$medicine", medicine._id],
-                    },
-
-                    {
-                      $eq: ["$isActive", true],
-                    },
-
-                    {
-                      $ne: ["$status", "OUT_OF_STOCK"],
-                    },
-                  ],
-                },
-              },
-            },
-          ],
-
-          as: "inventory",
-        },
-      },
-
-      // -------------------------------------------
-      // Only pharmacies having medicine
-      // -------------------------------------------
-
-      {
-        $match: {
-          "inventory.0": {
-            $exists: true,
-          },
-        },
-      },
-
-      // -------------------------------------------
-      // One inventory item
-      // -------------------------------------------
-
-      {
-        $unwind: "$inventory",
-      },
-
-      // -------------------------------------------
-      // Select fields
-      // -------------------------------------------
-
-      {
-        $project: {
-          _id: 1,
-          storeName: 1,
-          phone: 1,
-          address: 1,
-          location: 1,
-          openingTime: 1,
-          closingTime: 1,
-          distance: 1,
-          inventory: 1,
-        },
-      },
-
-      {
-        $limit: limitNumber,
-      },
-    ]);
-
-    // -----------------------------------------------
-    // Format response
-    // -----------------------------------------------
-
-    const stores = pharmacies.map((pharmacy) => {
-      const inventory = pharmacy.inventory;
-
-      const distanceKm = pharmacy.distance / 1000;
-
-      const discount = inventory.discount || 0;
-
-      const effectivePrice =
-        inventory.price - (inventory.price * discount) / 100;
-
-      const isOpen = getStoreOpenStatus(
-        pharmacy.openingTime,
-        pharmacy.closingTime,
-      );
-
-      return {
+      stores.push({
+        inventoryId: inv._id,
         pharmacyId: pharmacy._id,
-
+        medicineId: medicine._id,
         storeName: pharmacy.storeName,
-
         address: pharmacy.address,
-
         phone: pharmacy.phone,
-
-        distance: Number(distanceKm.toFixed(2)),
-
+        distance: distanceKm,
         distanceUnit: "km",
-
         openingTime: pharmacy.openingTime,
-
         closingTime: pharmacy.closingTime,
-
         storeStatus: isOpen ? "OPEN" : "CLOSED",
-
         isOpen,
-
         medicine: {
+          _id: medicine._id,
           id: medicine._id,
-
           name: medicine.name,
-
           genericName: medicine.genericName,
-
           brandName: medicine.brandName,
-
           dosage: medicine.dosage,
         },
-
-        price: inventory.price,
-
+        price: inv.price,
         discount,
-
         effectivePrice: Number(effectivePrice.toFixed(2)),
+        stock: inv.stock,
+        stockStatus: inv.status,
+      });
+    }
 
-        stock: inventory.stock,
+    // Sort by distance if location provided, otherwise by effectivePrice
+    if (hasLocation) {
+      stores.sort((a, b) => a.distance - b.distance);
+    } else {
+      stores.sort((a, b) => a.effectivePrice - b.effectivePrice);
+    }
 
-        stockStatus: inventory.status,
-      };
-    });
+    const limitedStores = stores.slice(0, Number(limit) || 20);
 
     res.json({
       success: true,
-
       search: q,
-
-      location: {
-        longitude: longitudeNumber,
-
-        latitude: latitudeNumber,
-      },
-
-      radius: radiusNumber,
-
-      count: stores.length,
-
-      stores,
+      count: limitedStores.length,
+      stores: limitedStores,
     });
   } catch (error) {
     next(error);

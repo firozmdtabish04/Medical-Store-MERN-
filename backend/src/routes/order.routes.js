@@ -20,6 +20,7 @@ router.get("/my", protect, authorize("CUSTOMER"), getMyOrders);
 router.patch("/:id/cancel", protect, authorize("CUSTOMER"), cancelOrder);
 
 // PHARMACIST
+router.get("/pharmacy", protect, authorize("PHARMACIST"), getPharmacyOrders);
 router.get("/pharmacy/my", protect, authorize("PHARMACIST"), getPharmacyOrders);
 router.patch(
   "/pharmacy/:id/status",

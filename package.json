@@ -1,0 +1,21 @@
+{
+  "name": "medifind-mern",
+  "version": "1.0.0",
+  "description": "MediFind - FullStack MERN Medicine Availability & Delivery Platform",
+  "scripts": {
+    "start": "node start.js",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:client": "npm --prefix client run dev",
+    "seed": "npm --prefix backend run seed",
+    "install:all": "npm install --prefix backend && npm install --prefix client"
+  },
+  "keywords": [
+    "mern",
+    "react",
+    "express",
+    "mongodb",
+    "medical-store"
+  ],
+  "author": "",
+  "license": "ISC"
+}
