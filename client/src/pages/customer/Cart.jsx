@@ -31,18 +31,30 @@ export default function Cart() {
     if (!medicine) return;
 
     setCart((previousCart) => {
+      const invId = medicine.inventoryId || medicine._id || medicine.id;
+      const calculatedEffectivePrice =
+        medicine.effectivePrice ??
+        Number(
+          (
+            medicine.price -
+            (medicine.price * (medicine.discount || 0)) / 100
+          ).toFixed(2),
+        );
+      const pharmId =
+        medicine.pharmacyId || medicine.pharmacy?._id || medicine.pharmacy;
+
       const existingItem = previousCart.find(
-        (item) => item.inventoryId === medicine.inventoryId,
+        (item) => item.inventoryId === invId,
       );
 
       let updatedCart;
 
       if (existingItem) {
         updatedCart = previousCart.map((item) =>
-          item.inventoryId === medicine.inventoryId
+          item.inventoryId === invId
             ? {
                 ...item,
-                quantity: Math.min(item.quantity + 1, medicine.stock),
+                quantity: Math.min(item.quantity + 1, medicine.stock || 99),
               }
             : item,
         );
@@ -50,14 +62,16 @@ export default function Cart() {
         updatedCart = [
           ...previousCart,
           {
-            inventoryId: medicine.inventoryId,
-            pharmacyId: medicine.pharmacyId,
-            storeName: medicine.storeName,
-            medicine: medicine.medicine,
+            inventoryId: invId,
+            pharmacyId: pharmId,
+            storeName: medicine.storeName || "Apollo Care Pharmacy",
+            medicine: medicine.medicine || {
+              name: medicine.name || "Medicine",
+            },
             price: medicine.price,
             discount: medicine.discount || 0,
-            effectivePrice: medicine.effectivePrice,
-            stock: medicine.stock,
+            effectivePrice: calculatedEffectivePrice,
+            stock: medicine.stock || 100,
             quantity: 1,
           },
         ];

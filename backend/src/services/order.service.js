@@ -46,16 +46,32 @@ const createOrder = async ({
     const orderItems = [];
 
     for (const item of items) {
-      const inventoryQuery = PharmacyMedicine.findOne({
-        _id: item.inventoryId,
-        pharmacy: pharmacyId,
+      const invId = item.inventoryId || item._id || item.id || item.medicineId;
+      
+      let inventoryQuery = PharmacyMedicine.findOne({
+        _id: invId,
         isActive: true,
       }).populate("medicine");
       if (useTransaction) inventoryQuery.session(session);
-      const inventory = await inventoryQuery;
+      let inventory = await inventoryQuery;
+
+      // Fallback: If invId was actually the medicine ID
+      if (!inventory) {
+        let medQuery = PharmacyMedicine.findOne({
+          medicine: invId,
+          ...(pharmacyId ? { pharmacy: pharmacyId } : {}),
+          isActive: true,
+        }).populate("medicine");
+        if (useTransaction) medQuery.session(session);
+        inventory = await medQuery;
+      }
 
       if (!inventory) {
         throw new Error("Medicine inventory not found");
+      }
+
+      if (!pharmacyId && inventory.pharmacy) {
+        pharmacyId = inventory.pharmacy;
       }
 
       if (inventory.stock < item.quantity) {

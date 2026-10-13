@@ -45,24 +45,50 @@ export default function PlaceOrder() {
     } else {
       const saved = localStorage.getItem("medifind_cart");
       if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.length > 0) {
-          setCart(parsed);
-          const sub = parsed.reduce(
-            (acc, item) => acc + item.effectivePrice * item.quantity,
-            0,
-          );
-          const fee = sub >= 500 ? 0 : 40;
-          setSubtotal(sub);
-          setDeliveryFee(fee);
-          setTotal(sub + fee);
-        } else {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.length > 0) {
+            setCart(parsed);
+            const sub = parsed.reduce(
+              (acc, item) =>
+                acc +
+                Number(item.effectivePrice ?? item.price ?? 0) *
+                  Number(item.quantity ?? 1),
+              0,
+            );
+            const fee = sub >= 500 ? 0 : 40;
+            setSubtotal(sub);
+            setDeliveryFee(fee);
+            setTotal(sub + fee);
+          } else {
+            navigate("/customer/cart");
+          }
+        } catch (e) {
           navigate("/customer/cart");
         }
       } else {
         navigate("/customer/cart");
       }
     }
+
+    // Attempt to load customer's saved address from profile
+    const loadProfileAddress = async () => {
+      try {
+        const res = await api.get("/auth/profile");
+        const profile = res.data?.user || res.data?.data;
+        if (profile?.address) {
+          setAddress((prev) => ({
+            street: prev.street || profile.address.street || "",
+            city: prev.city || profile.address.city || "",
+            state: prev.state || profile.address.state || "",
+            pincode: prev.pincode || profile.address.pincode || "",
+          }));
+        }
+      } catch (err) {
+        // Fallback silently
+      }
+    };
+    loadProfileAddress();
   }, [location.state, navigate]);
 
   const handleAddressChange = (e) => {
@@ -90,11 +116,10 @@ export default function PlaceOrder() {
     }
 
     // Identify pharmacy (items belong to pharmacy)
-    const pharmacyId = cart[0]?.pharmacyId;
-    if (!pharmacyId) {
-      setError("Pharmacy information missing from cart item.");
-      return;
-    }
+    const pharmacyId =
+      cart[0]?.pharmacyId ||
+      cart[0]?.pharmacy?._id ||
+      cart[0]?.pharmacy;
 
     setLoading(true);
 
@@ -102,8 +127,9 @@ export default function PlaceOrder() {
       const orderPayload = {
         pharmacyId,
         items: cart.map((item) => ({
-          inventoryId: item.inventoryId,
-          quantity: item.quantity,
+          inventoryId: item.inventoryId || item._id || item.id || item.medicineId,
+          quantity: Number(item.quantity) || 1,
+          price: Number(item.effectivePrice ?? item.price ?? 0),
         })),
         deliveryAddress: {
           street: address.street.trim(),
@@ -120,17 +146,26 @@ export default function PlaceOrder() {
 
       const response = await api.post("/orders", orderPayload);
       const createdOrder = response.data?.order;
+      const orderId = createdOrder?._id || createdOrder?.id;
+
+      if (!orderId) {
+        throw new Error("Order creation succeeded but order ID was not received.");
+      }
 
       // Handle payment method
       if (paymentMethod === "COD") {
-        await api.post("/payments/cod", { orderId: createdOrder._id });
+        try {
+          await api.post("/payments/cod", { orderId });
+        } catch (paymentErr) {
+          console.warn("COD payment registration info:", paymentErr);
+        }
       }
 
       // Clear Cart
       localStorage.removeItem("medifind_cart");
 
       // Redirect to Order Tracking
-      navigate(`/customer/tracking?order=${createdOrder._id}`);
+      navigate(`/customer/tracking?order=${orderId}`);
     } catch (err) {
       console.error("Failed to place order:", err);
       setError(

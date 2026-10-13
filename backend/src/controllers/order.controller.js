@@ -1,23 +1,35 @@
 const Order = require("../models/Order");
+const PharmacyMedicine = require("../models/PharmacyMedicine");
 const { createOrder } = require("../services/order.service");
 const { emitToOrder } = require("../sockets/socket");
 
 // CUSTOMER: PLACE ORDER
 const placeOrder = async (req, res, next) => {
   try {
-    const { pharmacyId, items, deliveryAddress, paymentMethod } = req.body;
-
-    if (!pharmacyId) {
-      return res.status(400).json({
-        success: false,
-        message: "Pharmacy is required",
-      });
-    }
+    let { pharmacyId, items, deliveryAddress, paymentMethod } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({
         success: false,
         message: "At least one medicine is required",
+      });
+    }
+
+    if (!pharmacyId && items.length > 0) {
+      pharmacyId = items[0].pharmacyId || items[0].pharmacy;
+      if (!pharmacyId) {
+        const invId = items[0].inventoryId || items[0]._id || items[0].id || items[0].medicineId;
+        if (invId) {
+          const inv = await PharmacyMedicine.findById(invId);
+          if (inv && inv.pharmacy) pharmacyId = inv.pharmacy;
+        }
+      }
+    }
+
+    if (!pharmacyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Pharmacy is required",
       });
     }
 
